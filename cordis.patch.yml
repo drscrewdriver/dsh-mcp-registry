@@ -1,0 +1,10 @@
+# Register dsh-mcp-registry into the DSH profile.
+#
+# [0.1.2+ contract] the loader row specifier MUST equal the package.json `name`
+# (dsh-mcp-registry) — the nearest-manifest-name check classifies the entry;
+# an alias here makes the entry silently lose client/settings eligibility.
+#
+# All Config fields are optional; defaults are computed in src/index.ts.
+- insert:
+    - id: dsh-mcp-registry
+      name: "dsh-mcp-registry"

@@ -1,0 +1,70 @@
+{
+  "name": "dsh-mcp-registry",
+  "version": "0.2.9",
+  "description": "dsh-mcp-registry: DSH plugin — a governed registry for MCP connectors (stdio / streamable-http). Multi-level fail-closed authorization (global switch → per-connector permission mode → per-tool grants → live server-annotation evidence), mcpServers JSON import that rejects malformed args loudly instead of silently dropping them, honest probe status with failure codes, credential redaction on every output boundary, and an agent bridge tool whose review-all default refuses rather than fakes approval. Learnings distilled from dsh-mcp-connector, dsh-mcp-panel and openhanako's core/mcp.",
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./dsh-plugin.json": "./dsh-plugin.json",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/",
+    "cordis.patch.yml",
+    "dsh-plugin.json",
+    "HANDOVER.md",
+    "!**/*.map"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-0"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "build": "tsdown -c tsdown.config.ts"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.7-rc.1 <0.1.8-0 || >=0.2.0-rc.1 <0.3.0-0",
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.1.7-rc.1 <0.1.8-0",
+    "@types/node": "^22.20.1",
+    "tsdown": "^0.15.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=22",
+    "dsh": ">=0.2.0-0"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "tag": "dsh-0.2.0"
+  }
+}
