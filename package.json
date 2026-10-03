@@ -34,6 +34,7 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint src tests",
     "test": "vitest run",
     "build": "tsdown -c tsdown.config.ts"
   },
@@ -54,9 +55,12 @@
   },
   "devDependencies": {
     "@deepseek-ai/dsh-tools": ">=0.1.7-rc.1 <0.1.8-0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.1",
+    "eslint": "^10.12.0",
     "tsdown": "^0.15.0",
     "typescript": "^5.9.0",
+    "typescript-eslint": "^8.71.0",
     "vitest": "^3.2.0"
   },
   "engines": {
