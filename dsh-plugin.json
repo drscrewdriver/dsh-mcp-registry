@@ -1,69 +1,81 @@
 {
- "$schema": "https://dsh.community/schemas/dsh-plugin-0.15.json",
- "id": "dsh-mcp-registry",
- "name": "dsh-mcp-registry",
- "version": "0.2.3",
- "manifestVersion": "0.15",
- "facets": {
-  "host": {
-   "entry": "lib/index.js",
-   "apiVersion": "v1alpha1"
-  }
- },
- "requires": {
-  "contracts": []
- },
- "permissions": [],
- "contributes": {
-  "commands": [],
-  "x-dsh-tui": [
-   {
-    "apiVersion": "tui.dsh/v1alpha1",
-    "kind": "SettingsSection",
-    "id": "dsh-mcp-registry.settings",
-    "name": "dsh_mcp_registry_settings",
-    "spec": {
-     "namespace": "dsh-mcp-registry",
-     "title": "MCP 注册表",
-     "titles": {
-      "en": "MCP Registry",
-      "zh": "MCP 注册表"
-     },
-     "fields": [
-      {
-       "path": ["enabled"],
-       "label": "Master switch",
-       "kind": "bool",
-       "hint": "Off = mcp_bridge_call refuses and the status tool reports disabled."
-      },
-      {
-       "path": ["defaultPermissionMode"],
-       "label": "Default permission mode",
-       "kind": "select",
-       "options": [
-        { "value": "review-all", "label": "Review all" },
-        { "value": "allowlist", "label": "Allowlist" }
-       ]
-      },
-      {
-       "path": ["probeTimeoutMs"],
-       "label": "Probe timeout (ms)",
-       "kind": "number",
-       "hint": "Timeout for one MCP initialize handshake. Probes are manual (/mcp-reg probe)."
-      }
-     ]
+  "$schema": "https://dsh.community/schemas/dsh-plugin-0.15.json",
+  "id": "dsh-mcp-registry",
+  "name": "dsh-mcp-registry",
+  "version": "0.2.10",
+  "manifestVersion": "0.15",
+  "facets": {
+    "host": {
+      "entry": "lib/index.js",
+      "apiVersion": "v1alpha1"
     }
-   }
-  ]
- },
- "subscriptions": [],
- "license": "MIT",
- "source": {
-  "repository": "https://github.com/drscrewdriver/dsh-mcp-registry"
- },
- "compat": {
-  "hosts": [
-   "dsh-tui"
-  ]
- }
+  },
+  "requires": {
+    "contracts": []
+  },
+  "permissions": [],
+  "contributes": {
+    "commands": [],
+    "x-dsh-tui": [
+      {
+        "apiVersion": "tui.dsh/v1alpha1",
+        "kind": "SettingsSection",
+        "id": "dsh-mcp-registry.settings",
+        "name": "dsh_mcp_registry_settings",
+        "spec": {
+          "namespace": "dsh-mcp-registry",
+          "title": "MCP 注册表",
+          "titles": {
+            "en": "MCP Registry",
+            "zh": "MCP 注册表"
+          },
+          "fields": [
+            {
+              "path": [
+                "enabled"
+              ],
+              "label": "Master switch",
+              "kind": "bool",
+              "hint": "Off = mcp_bridge_call refuses and the status tool reports disabled."
+            },
+            {
+              "path": [
+                "defaultPermissionMode"
+              ],
+              "label": "Default permission mode",
+              "kind": "select",
+              "options": [
+                {
+                  "value": "review-all",
+                  "label": "Review all"
+                },
+                {
+                  "value": "allowlist",
+                  "label": "Allowlist"
+                }
+              ]
+            },
+            {
+              "path": [
+                "probeTimeoutMs"
+              ],
+              "label": "Probe timeout (ms)",
+              "kind": "number",
+              "hint": "Timeout for one MCP initialize handshake. Probes are manual (/mcp-reg probe)."
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "subscriptions": [],
+  "license": "MIT",
+  "source": {
+    "repository": "https://github.com/drscrewdriver/dsh-mcp-registry"
+  },
+  "compat": {
+    "hosts": [
+      "dsh-tui"
+    ]
+  }
 }

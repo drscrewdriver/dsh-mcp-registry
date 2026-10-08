@@ -1,5 +1,17 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.2.10 (2026-10-08)
+
+支持线放宽至 0.1.7 + 门禁补配（M4 设置卡批次 Phase 2）。
+
+### 变更
+- **engines.dsh 放宽**：`>=0.2.0-0` → `>=0.1.7-rc.1 <0.1.8-0 || >=0.2.0-rc.1 <0.3.0-0`（顶层与 `dsh.engines.dsh` 两处同步）——消除与 dsh-tools peer（早已放行 0.1.7 线）的双门矛盾；0.1.7-rc.2 格实装验收。
+- **V3 peer 补配**：`@deepseek-ai/dsh-client-ui-slots` / `@deepseek-ai/dsh-client-ui-settings` 补进 peerDependencies（15-rc 枚举，optional）——dsh.client.inject 自 scaffold 引用两模块却从未声明背书，verify-package V3 自建仓即红（0.2.9 系绕门禁发）。
+- manifest `dsh-plugin.json` 版本 0.2.3→0.2.10（与 package.json 同步，V1 双清单）。
+
+### 边界
+- 设置卡不加桥：可安装线（0.1.7/0.2.0）上 configForms 原生可用（三代腰实测），卡原生读写已覆盖；≤0.1.5 需放宽 dsh-tools peer 并验证 tools/TUI/connector 全功能面，独立批次另议。
+
 ## 0.2.9 (2026-10-03)
 
 家族面收敛与接管完善（全部真机截图验收）。
