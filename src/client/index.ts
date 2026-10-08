@@ -140,7 +140,13 @@ function armConfigForms(ctx: any): void {
   } catch { /* old line: no such service */ }
 }
 function configScopeLive(ctx: any): any {
-  return configRef.current ?? configScope(ctx)
+  // ref holds the configForms SERVICE (it has .get); the card needs the
+  // per-namespace doc handle that .get(ID) returns (subscribe/getSnapshot/set).
+  const svc = configRef.current
+  if (svc && typeof svc.get === 'function') {
+    try { return svc.get(ID) } catch { /* fall through */ }
+  }
+  return configScope(ctx)
 }
 
 // ── gateway client ──────────────────────────────────────────────────────────
@@ -407,8 +413,16 @@ function ConnectorCard(props: any): any {
 
 // ── the full card ────────────────────────────────────────────────────────────
 function SettingsCard(props: any): any {
-  const scope = props.scope
   const h = React.createElement
+  // The scoped-inject fiber can land AFTER the slot factory ran, so scope may
+  // arrive late: accept a getter, poll until it resolves.
+  const scope = typeof props.scope === 'function' ? props.scope() : props.scope
+  const [, rerender] = React.useState(0)
+  React.useEffect(function () {
+    if (scope && typeof scope.getSnapshot === 'function') return
+    const timer = setInterval(function () { rerender(function (n: number): number { return n + 1 }) }, 500)
+    return function (): void { clearInterval(timer) }
+  }, [])
   if (!scope || typeof scope.getSnapshot !== 'function') {
     return h('div', { style: { padding: '8px 0', fontSize: '12px', color: 'var(--dsh-alias-label-tertiary, rgba(127,127,127,.8))' } },
       wt('cfgUnavailable'))
@@ -443,7 +457,7 @@ function apply(ctx: any): void {
       id: ID,
       order: 40,
       label: function (): string { return wt('famTitle') },
-      inject: function (): any { return { scope: configScopeLive(ctx) } },
+      inject: function (): any { return { scope: function (): any { return configScopeLive(ctx) } } },
     }, SettingsCard)
   }, 'dsh-mcp-registry: family settings tab')
 
@@ -452,7 +466,7 @@ function apply(ctx: any): void {
     return ctx.slots.register({
       name: 'plugins.bundle.config',
       key: ID,
-      inject: function (): any { return { scope: configScopeLive(ctx) } },
+      inject: function (): any { return { scope: function (): any { return configScopeLive(ctx) } } },
     }, SettingsCard)
   }, 'dsh-mcp-registry: plugins-page config card')
 
