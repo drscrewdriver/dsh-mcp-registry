@@ -150,12 +150,29 @@ function configScopeLive(ctx: any): any {
 }
 
 // ── gateway client ──────────────────────────────────────────────────────────
+const GATEWAY_TIMEOUT_MS = 8000
 async function api(method: string, body?: Record<string, unknown>): Promise<any> {
-  const res = await fetch(`${API}/${method}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  })
+  // Desktop shells may not share the web origin (Electron): a relative URL can
+  // hang forever. Bound it with an abort timer; try the absolute same-origin
+  // URL first, then the literal relative path as fallback.
+  const ctrl = new AbortController()
+  const timer = setTimeout(function (): void { ctrl.abort() }, GATEWAY_TIMEOUT_MS)
+  let res: Response
+  try {
+    const init: RequestInit = {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+      signal: ctrl.signal,
+    }
+    const base = typeof location !== 'undefined' && location.origin && location.origin !== 'null' ? location.origin + '/' : undefined
+    try {
+      res = await fetch(base ? new URL('mcp-registry/api/' + method, base) : API + '/' + method, init)
+    } catch (e) {
+      if (!base) throw e
+      res = await fetch(API, init)
+    }
+  } finally { clearTimeout(timer) }
   const payload: any = await res.json().catch(() => null)
   if (!payload || typeof payload !== 'object' || payload.ok !== true) {
     const message = payload && payload.error ? payload.error.message : `HTTP ${res.status}`
@@ -284,7 +301,8 @@ function ConnectorManager(): any {
     return h('div', { style: { padding: '8px 0', fontSize: '12px', color: '#e6a23c' } }, wt('damaged') + damaged)
   }
   if (rows === null) {
-    return h('div', { style: { padding: '8px 0', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } }, '…')
+    return h('div', { style: { padding: '8px 0', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } },
+      '… [diag: origin=' + (typeof location !== 'undefined' ? location.origin : 'n/a') + ']')
   }
 
   const toolbar = h('div', { style: { display: 'flex', gap: '6px', padding: '4px 0' } },
