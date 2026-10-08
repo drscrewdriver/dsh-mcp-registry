@@ -124,6 +124,25 @@ function configScope(ctx: any): any {
   }
 }
 
+/** Scoped-inject arm (cci lesson): the configForms handle only materializes
+ *  INSIDE a ['configForms'] fiber — the callback's host ctx carries the
+ *  service as a property. A plain apply-time property read is undefined on
+ *  EVERY line (0.2.0 measured 2026-10-09: the card showed the old-line
+ *  notice everywhere). On ≤0.1.5 the fiber pends forever without blocking
+ *  the plugin's other faces (perm-gate compat posture). */
+const configRef: { current: any } = { current: undefined }
+function armConfigForms(ctx: any): void {
+  try {
+    ctx.inject?.(['configForms'], function (host: any): void {
+      const handle = host?.configForms ?? host
+      if (handle && typeof handle.get === 'function') configRef.current = handle
+    })
+  } catch { /* old line: no such service */ }
+}
+function configScopeLive(ctx: any): any {
+  return configRef.current ?? configScope(ctx)
+}
+
 // ── gateway client ──────────────────────────────────────────────────────────
 async function api(method: string, body?: Record<string, unknown>): Promise<any> {
   const res = await fetch(`${API}/${method}`, {
@@ -410,6 +429,7 @@ function SettingsCard(props: any): any {
 // ── mounting: own top-level section + plugin detail page ────────────────────
 function apply(ctx: any): void {
   if (!ctx.slots || typeof ctx.slots.inject !== 'function') return
+  armConfigForms(ctx)
 
   // Family settings tab: a TAB inside the shared 起子插件设置 section
   // (the `dsh-family.tab` child slot provided by dsh-thinking-levels —
@@ -423,7 +443,7 @@ function apply(ctx: any): void {
       id: ID,
       order: 40,
       label: function (): string { return wt('famTitle') },
-      inject: function (): any { return { scope: configScope(ctx) } },
+      inject: function (): any { return { scope: configScopeLive(ctx) } },
     }, SettingsCard)
   }, 'dsh-mcp-registry: family settings tab')
 
@@ -432,7 +452,7 @@ function apply(ctx: any): void {
     return ctx.slots.register({
       name: 'plugins.bundle.config',
       key: ID,
-      inject: function (): any { return { scope: configScope(ctx) } },
+      inject: function (): any { return { scope: configScopeLive(ctx) } },
     }, SettingsCard)
   }, 'dsh-mcp-registry: plugins-page config card')
 
