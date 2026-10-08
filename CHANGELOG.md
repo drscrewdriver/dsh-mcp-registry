@@ -1,5 +1,13 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.2.11 (2026-10-08)
+
+≤0.1.5 炸树修复（legacy-sink 批次 Phase 1）。
+
+### 变更
+- **client 顶层 inject 砍除 configForms**（0.2.10 炸树真凶）：`['slots', 'configForms']` → `['slots']`——≤0.1.5 宿主无此服务，顶层声明令整棵 client 树 pending、web boot 拒渲染（M4 批次 0.1.0 假 NOT_FOUND 根因）。configForms 改 configScope() 软读（try/catch，老线 throw 即回退），Config 字段组降级为只读提示（cfgUnavailable），连接器管理走网关不受影响。
+- **engines.dsh 放宽**：`>=0.1.7-rc.1 <0.1.8-0 || >=0.2.0-rc.1 <0.3.0-0` → `>=0.1.0-0 <0.3.0-0`（三处同步）——≤0.1.5 四老格正式进入支持面（dsh.client.inject providers 同步砍除 dsh-client-ui-settings；peerDependencies 枚举不动）。
+
 ## 0.2.10 (2026-10-08)
 
 支持线放宽至 0.1.7 + 门禁补配（M4 设置卡批次 Phase 2）。

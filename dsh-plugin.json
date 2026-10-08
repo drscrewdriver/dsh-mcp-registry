@@ -2,7 +2,7 @@
   "$schema": "https://dsh.community/schemas/dsh-plugin-0.15.json",
   "id": "dsh-mcp-registry",
   "name": "dsh-mcp-registry",
-  "version": "0.2.10",
+  "version": "0.2.11",
   "manifestVersion": "0.15",
   "facets": {
     "host": {

@@ -16,11 +16,17 @@
  * redacted projections only.
  *
  * Registration lessons from dsh-thinking-levels (index.ts:92-98):
- *  - `configForms` is declared in this module's `inject` list so the loader
- *     guarantees the service started before apply(); a synchronous get() at
- *     apply time silently returned undefined in 0.2.3 and nothing registered.
+ *  - 0.2.10 declared `configForms` in this module's `inject` list so the
+ *     loader guaranteed the service started before apply(); that silently
+ *     killed the WHOLE client tree on ≤0.1.5 hosts (the service does not
+ *     exist there — the fiber pends forever and web boot refuses to render,
+ *     M4 batch measured 2026-10-08). 0.2.11 reads it SOFT instead:
+ *     `configScope()` below try/catches a `ctx.configForms` property read,
+ *     which throws-and-falls-back on old lines and resolves normally on
+ *     0.1.7+. The Config field groups degrade to a read-only notice; the
+ *     connector manager rides the gateway and never needed configForms.
  *  - package.json `dsh.client.inject` names the PROVIDER modules
- *     (dsh-client-ui-slots → slots, dsh-client-ui-settings → configForms).
+ *     (dsh-client-ui-slots → slots).
  *
  * React comes from the host profile via require(); plain createElement (CJS
  * ModuleLoader build); bilingual labels from an inline zh/en dict.
@@ -35,6 +41,10 @@ const API = '/mcp-registry/api'
 // ── bilingual labels (zh source of truth) ───────────────────────────────────
 const DICT: Record<string, { zh: string; en: string }> = {
   famTitle: { zh: 'MCP 注册表', en: 'MCP Registry' },
+  cfgUnavailable: {
+    zh: '配置字段此宿主线不可读（configForms 缺席，老线常态）——连接器管理不受影响；配置可经 cordis.patch.yml 本条目 config 修改。',
+    en: 'Config fields unreadable on this host line (no configForms) — connector management is unaffected; edit this entry\'s config in cordis.patch.yml.',
+  },
   familyTitle: { zh: '起子插件设置', en: 'Plugin Family Settings' },
   gCore: { zh: '注册表与授权', en: 'Registry & authorization' },
   enabled: { zh: '总开关', en: 'Master switch' },
@@ -100,8 +110,11 @@ const FIELD_GROUPS: Array<{ gk: string; fields: FieldSpec[] }> = [
   ] },
 ]
 
-/** Services required by the browser half (lesson from 0.2.3 — see header). */
-export const inject = ['slots', 'configForms']
+/** Services required by the browser half (lesson from 0.2.3 — see header).
+ *  `configForms` must NOT be declared here: it is generation-exclusive
+ *  (0.1.7+) and a top-level declaration pends the whole client tree on
+ *  ≤0.1.5 hosts (0.2.10 tree-killer, M4 batch). Soft-read via configScope. */
+export const inject = ['slots']
 
 function configScope(ctx: any): any {
   try {
@@ -378,8 +391,8 @@ function SettingsCard(props: any): any {
   const scope = props.scope
   const h = React.createElement
   if (!scope || typeof scope.getSnapshot !== 'function') {
-    return h('div', { style: { padding: '8px 0', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } },
-      wt('famTitle') + ' — configForms scope unavailable')
+    return h('div', { style: { padding: '8px 0', fontSize: '12px', color: 'var(--dsh-alias-label-tertiary, rgba(127,127,127,.8))' } },
+      wt('cfgUnavailable'))
   }
   const snapshot = React.useSyncExternalStore(
     function (listener: () => void) { return scope.subscribe(listener) },
