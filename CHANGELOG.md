@@ -1,5 +1,8 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.3.3 (2026-10-10) — 收窄支持面：仅 0.1.7 / 0.2.0 rc 线
+连接器管理的 Config 区依赖 `configForms`（0.1.7+ 原生可用）；≤0.1.5 无 configForms、只剩只读降级提示，体验不保真。本版把支持面从 `>=0.1.0-0 <0.3.0-0` 收窄到 **0.1.7-rc.1+ 与 0.2.0-rc 线**：`engines.dsh`（两处）改为 `>=0.1.7-rc.1 <0.1.8-0 || >=0.2.0-rc.1 <0.3.0-0`；`dsh-client-ui-slots` / `dsh-client-ui-settings` peer 枚举收窄到 `0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2`（peer 是宿主 evaluatePluginCompatibility 的 runtime 唯一门禁，故 ≤0.1.5 安装会被拒）。连接器管理网关面（走 webServer）本身跨线可用，但为体验一致不再宣称支持老线。typecheck 0；vitest 78/78。
+
 ## 0.3.2 (2026-10-10) — 连接器管理增强（手动添加 / 删除 / 工具树权限面板 / 乐观同步）
 
 ### 新增
