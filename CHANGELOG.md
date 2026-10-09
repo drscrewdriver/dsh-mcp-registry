@@ -1,5 +1,37 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.3.2 (2026-10-10) — 连接器管理增强（手动添加 / 删除 / 工具树权限面板 / 乐观同步）
+
+### 新增
+- **手动添加连接器**：设置卡「添加」折叠表单，ID 必填并即时按 `sanitizeId`（`[a-zA-Z0-9_-]{1,64}`）校验；名称 / 传输方式（stdio / streamable-http）/ 命令 / 参数 / URL / 环境变量 JSON，走网关 `add`。
+- **删除连接器**：行内「删除」两段式二次确认 → 网关 `remove`；`store.remove` 同步调 `bridge.forget(id)` 关闭该连接器会话 / stdio 子进程并清 evidence/probeCache/probeInFlight 三表（消除子进程与缓存泄漏，P2-j）。
+- **撞 id 拒绝**：`store.add` 对已存在 id 直接拒绝（`id-conflict`），绝不走 upsert 替换（替换会静默丢弃既有 grants/policy，P1-A）。
+- **安全着陆**：手动添加记录归一化后强制 `enabled=false + pendingConfirmation=true`（model 归一化对 manual 的默认与此相反），必须探活 + 确认后才启用（P0-1）。
+- **工具树权限面板**：连接器行「权限」展开即预读 `bridge.listTools`（名称 / 描述 / readOnlyHint / destructiveHint），逐工具 allow/review；destructive 工具的 allow 选项禁用并标注「授权层强制 review」；已下线工具可清理；预读失败（新连接器落地 disabled+pending 是常态）降级为手输工具名行；整 map 一次 `policy` 提交。
+- **投影贯通（P1-D）**：`publicView` 增 `toolPermissions` 全值 map（此前只吐 `grantedTools` 键名、丢 allow/review 值），客户端「放行」芯片按值分流，review 条目不再错显为已放行。
+- **网关新方法**：`/mcp-registry/api` 增 `add` / `remove` / `tools`；`policy` 支持整 `toolPermissions` map 直传（经 safeAssign 消毒）；`McpTransportError` → 4xx（对 disabled/pending 连接器取工具返回 400 而非 500，P2-c）。
+- **CLI**：`/mcp-reg add <inline json>`（必填 id）/ `remove <id>`。
+- **乐观同步（useSyncNow）**：全局默认授权模式（configForms 臂）与连接器 permissionMode/trust（网关臂）改动即时回显，失败按 500/1000/2000ms 三次重试，徽标四态（同步中 / 已同步 / 重试中 N/3 / 失败）；FieldRow 逐字段 opt-in，不波及 enabled/probeTimeout。
+
+### 修复
+- **React #310（渲染崩溃）**：`ConnectorManager` 的 `showAdd` 与 `SettingsCard` 的 `useSyncExternalStore`/`useMemo` 此前位于条件早退 return 之后，导致 hook 数量在「加载中/已加载」「scope 迟到/到位」两次渲染间变化 → 卡片整片空白。已把全部 hook 上提到早退之前（外部 store 与 memo 改为内部按 scopeReady 兜底）。
+- **添加表单命令框缺失**：stdio 分支误用逗号表达式 `(row(command), row(args))` 只渲染了参数行，且 `connector.command` 恒为空会创建出无可执行命令的坏连接器；改为条件分别渲染命令行与参数/URL 行。
+- **传输方式标签错标**：transport 下拉此前误用 `wt('permPanel')`（「权限」），新增独立 `transportLabel`（「传输方式 / Transport」）。
+
+### 双清单与验证
+- `package.json` 与 `dsh-plugin.json` 同步至 0.3.2（抹平 0.2.12–0.2.14 历史漂移；`engines.dsh` 维持 `>=0.1.0-0 <0.3.0-0`，`manifestVersion` 不动）。0.3.0 / 0.3.1 为未发布的中间构建，折入本版本。
+- typecheck 0 错；vitest 78/78（新增 `surface-http.test` + `command.test` + `store-manage.test`）。
+- host farm 五格（0.1.0-rc.8 / 0.1.1-rc.2 / 0.1.2-rc.1 / 0.1.5-rc.3 / 0.1.7-rc.2）+ desktop 实装：网关 `add/remove/tools/policy` 全链实测通过（含 P0-1 强制停用+待确认、P1-A 撞 id 拒绝、P2-c tools 4xx、P1-D 整 map 持久化、remove 持久化）；**0.1.0 / 0.1.1 gateway 实测可用**（老线直连，连接器管理照常，无需降级卡，P2-i）；浏览器复验添加表单渲染无 #310、命令框与传输方式标签修复生效。
+
+## 0.2.14 (2026-10-09) — 网关 fetch 有界（8s abort）+ 绝对 URL 优先
+Desktop 外壳（Electron）可能与 web origin 不同源：相对 `/mcp-registry/api` 的 fetch 会永久挂起，连接器列表停在加载点（0.2.0 desktop 2026-10-09 实测）。每次调用绑 AbortController，先试绝对同源 URL、失败回退字面相对路径；加载点带可见 origin 诊断。
+
+## 0.2.13 (2026-10-09) — 卡片惰性读 doc 句柄；scoped fiber 可迟到
+`configScopeLive` 经 `.get(ID)` 把 configRef（configForms 服务）解包到按命名空间的 doc 句柄；SettingsCard 接受 scope getter 并以 500ms 轮询，使 `['configForms']` fiber 在 slot 工厂之后才解析出来时卡片能自愈。0.1.7 probe：字段渲染、老线提示消失；0.1.0：提示正确、console 干净。
+
+## 0.2.12 (2026-10-09) — configForms 句柄走 scoped-inject 臂
+apply 期直接读 `ctx.configForms` 属性在每条线上都是 undefined（0.2.0 desktop 2026-10-09 实测：卡片到处显示老线提示）——句柄只在 `['configForms']` fiber 内实体化，其宿主 ctx 才把服务作为属性携带（cci 教训）。捕获进 configRef，组件先读 ref。≤0.1.5 fiber 永久 pending 但不阻塞其他面。
+
 ## 0.2.11 (2026-10-08)
 
 ≤0.1.5 炸树修复（legacy-sink 批次 Phase 1）。

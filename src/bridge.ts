@@ -205,6 +205,23 @@ export class McpBridge {
     for (const [, session] of this.sessions) session.close()
     this.sessions.clear()
     this.evidence.clear()
+    this.probeCache.clear()
+    this.probeInFlight.clear()
+  }
+
+  /** Drop everything held for one connector: live session (stdio child
+   *  process / http transport), evidence, probe cache, in-flight probe.
+   *  Called on remove — without it a deleted id's child process would leak
+   *  until plugin restart with no path left to close it. */
+  forget(id: string): void {
+    const session = this.sessions.get(id)
+    if (session) {
+      try { session.close() } catch { /* best effort */ }
+      this.sessions.delete(id)
+    }
+    this.evidence.delete(id)
+    this.probeCache.delete(id)
+    this.probeInFlight.delete(id)
   }
 }
 

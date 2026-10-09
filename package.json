@@ -1,6 +1,6 @@
 {
   "name": "dsh-mcp-registry",
-  "version": "0.2.14",
+  "version": "0.3.2",
   "description": "dsh-mcp-registry: DSH plugin — a governed registry for MCP connectors (stdio / streamable-http). Multi-level fail-closed authorization (global switch → per-connector permission mode → per-tool grants → live server-annotation evidence), mcpServers JSON import that rejects malformed args loudly instead of silently dropping them, honest probe status with failure codes, credential redaction on every output boundary, and an agent bridge tool whose review-all default refuses rather than fakes approval. Learnings distilled from dsh-mcp-connector, dsh-mcp-panel and openhanako's core/mcp.",
   "type": "module",
   "main": "./lib/index.js",

@@ -10,12 +10,13 @@
  *    registry.json.corrupt-<ts>, every connector is treated as nonexistent,
  *    and further writes are refused (no "helpful" auto-rebuild — a silently
  *    rebuilt registry could silently rewrite user authorization).
- *  - Removal does not exist in v1: `disable` keeps the record (append-only).
+ *  - Removal (v0.3.0) is an explicit single-id operation (remove); callers
+   *    must also drop the connector's bridge session via McpBridge.forget.
  *
  * The file IO is injected so tests run on an in-memory filesystem.
  */
 import { sanitizeId, safeAssign } from './ids.ts'
-import type { ConnectorRecord } from './model.ts'
+import { normalizeConnectorInput, McpRecordError, type ConnectorRecord } from './model.ts'
 
 export interface StoreFileIo {
   readFile(path: string): string | null
@@ -169,6 +170,45 @@ export class RegistryStore {
       }
       this.state.connectors.push(record)
       return record
+    })
+  }
+
+  /**
+   * Manually create a connector. Body MUST carry the id (no generator exists
+   * and none is invented here). Safe landing is ENFORCED after normalization:
+   * the model's defaults flip by provenance (manual would land enabled +
+   * unconfirmed), so the two guard rails are set explicitly — a manual entry
+   * is a submitted credential exactly like an import, and must pass human
+   * confirmation (probe, confirm) before the bridge will run it.
+   * A conflicting id is REJECTED, never replaced (replace would silently
+   * discard the existing record's grants/policy).
+   */
+  add(body: { id: unknown; connector: unknown }): ConnectorRecord {
+    return this.runSync(() => {
+      if (this.damaged) throw new DamagedRegistryError(this.damageReason)
+      const safeId = sanitizeId(body.id)
+      if (!safeId) {
+        throw new McpRecordError('invalid-id', `connector id ${JSON.stringify(String(body.id ?? '').slice(0, 32))} is not a valid id ([a-zA-Z0-9_-]{1,64})`)
+      }
+      if (this.state.connectors.some((c) => c.id === safeId)) {
+        throw new McpRecordError('id-conflict', `connector "${safeId}" already exists — remove it first or pick another id`)
+      }
+      const record = normalizeConnectorInput(safeId, body.connector, { provenance: 'manual', now: this.now() })
+      record.enabled = false
+      record.pendingConfirmation = true
+      this.state.connectors.push(record)
+      return record
+    })
+  }
+
+  /** Delete exactly one connector. The caller owns bridge.forget(id). */
+  remove(id: string): string {
+    return this.runSync(() => {
+      if (this.damaged) throw new DamagedRegistryError(this.damageReason)
+      const idx = this.state.connectors.findIndex((c) => c.id === id)
+      if (idx < 0) throw new UnknownConnectorError(id)
+      this.state.connectors.splice(idx, 1)
+      return id
     })
   }
 

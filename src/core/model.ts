@@ -309,6 +309,11 @@ export interface ConnectorPublicView {
   provenance: Provenance
   permissionMode: PermissionMode
   grantedTools: string[]
+  /** Full per-tool map WITH values — the console cannot restore the current
+   *  authorization state from key names alone (allow vs review). Values are
+   *  not credentials; assertNoCredentialLeak only guards url/command/env/
+   *  headers/token. */
+  toolPermissions: Record<string, ToolPermission>
   trustReadOnlyHint: boolean
 }
 
@@ -323,6 +328,7 @@ export function publicView(record: ConnectorRecord): ConnectorPublicView {
     provenance: record.provenance,
     permissionMode: record.permissionMode,
     grantedTools: Object.keys(record.toolPermissions).filter((k) => record.toolPermissions[k] !== undefined),
+    toolPermissions: { ...record.toolPermissions },
     trustReadOnlyHint: record.trustReadOnlyHint,
   }
 }

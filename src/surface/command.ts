@@ -28,6 +28,9 @@ const HELP = `mcp-reg — MCP connector registry console
 
   mcp-reg list                       list connectors (redacted)
   mcp-reg probe <id>                 run one MCP initialize handshake
+  mcp-reg add <json>                 create ONE connector ({ "id": "...", ...fields });
+                                     lands disabled + unconfirmed, like import
+  mcp-reg remove <id>                delete a connector (drops its bridge session)
   mcp-reg import <path|json>         import mcpServers JSON (lands disabled + unconfirmed)
   mcp-reg export [--secrets]         export mcpServers JSON (secrets masked unless --secrets)
   mcp-reg confirm <id>               confirm an imported connector and enable it
@@ -108,6 +111,35 @@ function dispatch(input: string, deps: McpRegDeps): string | Promise<string> {
         }
         return `probe failed: ${outcome.code} — ${outcome.message}`
       })
+    }
+
+    case 'add': {
+      const source = rest.join(' ')
+      if (!source) return 'usage: mcp-reg add <json> — one connector object, "id" required'
+      let parsed: unknown
+      try { parsed = JSON.parse(source) } catch { return 'mcp-reg add: input is not valid JSON' }
+      const obj = (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed as Record<string, unknown> : null
+      if (!obj) return 'mcp-reg add: input must be a JSON object'
+      const { id, ...fields } = obj
+      if (!id || typeof id !== 'string') return 'mcp-reg add: "id" is required (string)'
+      try {
+        const record = store.add({ id, connector: fields })
+        return `created "${record.id}" [${record.transport}] — disabled + unconfirmed. Probe, review, then: mcp-reg confirm ${record.id}`
+      } catch (e) {
+        return errorMessage(e)
+      }
+    }
+
+    case 'remove': {
+      const id = rest[0] ?? ''
+      if (!id) return 'usage: mcp-reg remove <id>'
+      try {
+        store.remove(id)
+        bridge.forget(id)
+        return `removed "${id}" (bridge session dropped)`
+      } catch (e) {
+        return errorMessage(e)
+      }
     }
 
     case 'import': {

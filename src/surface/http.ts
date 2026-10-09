@@ -15,6 +15,7 @@ import type { RegistryStore } from '../core/store.ts'
 import { UnknownConnectorError, DamagedRegistryError } from '../core/store.ts'
 import { publicView, redactTarget, McpRecordError, type PermissionMode } from '../core/model.ts'
 import type { McpBridge } from '../bridge.ts'
+import { McpTransportError } from '../client/transport-error.ts'
 import { importMcpJson, McpImportError } from '../io/import.ts'
 import { exportMcpJson } from '../io/export.ts'
 import type { McpRegistryContext } from '../types.ts'
@@ -145,6 +146,33 @@ export function registerMcpRegistryGateway(ctx: McpRegistryContext, deps: Gatewa
           return
         }
 
+        if (method === 'add') {
+          if (!id) { writeJson(res, 400, envelopeError('invalid-id', 'id is required')); return }
+          const connector = (body.connector && typeof body.connector === 'object' && !Array.isArray(body.connector))
+            ? body.connector
+            : body
+          const record = store.add({ id: body.id, connector })
+          writeJson(res, 200, envelopeOk({ connector: publicView(record) }))
+          return
+        }
+
+        if (method === 'remove') {
+          if (!id) { writeJson(res, 400, envelopeError('invalid-id', 'id is required')); return }
+          store.remove(id)
+          bridge.forget(id)
+          writeJson(res, 200, envelopeOk({ removed: id }))
+          return
+        }
+
+        if (method === 'tools') {
+          if (!id) { writeJson(res, 400, envelopeError('invalid-id', 'id is required')); return }
+          const tools = await bridge.listTools(id)
+          writeJson(res, 200, envelopeOk({
+            tools: tools.map((t) => ({ name: t.name, description: t.description ?? '', annotations: t.annotations ?? {} })),
+          }))
+          return
+        }
+
         if (method === 'policy') {
           if (!id) { writeJson(res, 400, envelopeError('invalid-id', 'id is required')); return }
           const patch: {
@@ -156,6 +184,18 @@ export function registerMcpRegistryGateway(ctx: McpRegistryContext, deps: Gatewa
             patch.permissionMode = body.permissionMode
           }
           if (typeof body.trustReadOnlyHint === 'boolean') patch.trustReadOnlyHint = body.trustReadOnlyHint
+          if (body.toolPermissions && typeof body.toolPermissions === 'object' && !Array.isArray(body.toolPermissions)
+            && Object.keys(body.toolPermissions).length > 0) {
+            // Whole-map patch from the console panel: updatePolicy rebuilds
+            // through safeAssign, so untrusted keys stay sanitized. Values
+            // must already be valid enum strings — anything else is dropped
+            // by the same normalization import uses.
+            const map: Record<string, 'allow' | 'review'> = {}
+            for (const [k, v] of Object.entries(body.toolPermissions as Record<string, unknown>)) {
+              if ((v === 'allow' || v === 'review') && k.trim()) map[k.trim()] = v
+            }
+            patch.toolPermissions = map
+          }
           if (typeof body.grant === 'string' && body.grant.trim()) {
             const current = store.get(id)
             const next: Record<string, 'allow' | 'review'> = { ...(current?.toolPermissions ?? {}) }
@@ -219,6 +259,15 @@ export function registerMcpRegistryGateway(ctx: McpRegistryContext, deps: Gatewa
         }
         if (error instanceof McpRecordError) {
           writeJson(res, 400, envelopeError(error.code, error.message))
+          return
+        }
+        if (error instanceof McpTransportError) {
+          // disabled / pending-confirmation / unknown-connector / transport
+          // failures are client-visible 4xx semantics, not server faults —
+          // notably tools-listing on a fresh (disabled+pending) connector,
+          // which is the NORM, not an edge case.
+          const status = error.code === 'unknown-connector' ? 404 : 400
+          writeJson(res, status, envelopeError(error.code, error.message))
           return
         }
         const e = error as { code?: string }

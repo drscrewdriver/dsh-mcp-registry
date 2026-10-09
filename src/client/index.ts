@@ -41,6 +41,37 @@ const API = '/mcp-registry/api'
 // ── bilingual labels (zh source of truth) ───────────────────────────────────
 const DICT: Record<string, { zh: string; en: string }> = {
   famTitle: { zh: 'MCP 注册表', en: 'MCP Registry' },
+  addBtn: { zh: '添加', en: 'Add' },
+  addHeading: { zh: '手动添加连接器', en: 'Add a connector manually' },
+  idLabel: { zh: 'ID（必填，字母/数字/_/-）', en: 'ID (required: letters/digits/_/-)' },
+  nameLabel: { zh: '名称', en: 'Name' },
+  commandLabel: { zh: '命令（stdio）', en: 'Command (stdio)' },
+  argsLabel: { zh: '参数（空格分隔）', en: 'Args (space-separated)' },
+  urlLabel: { zh: 'URL（streamable-http）', en: 'URL (streamable-http)' },
+  transportLabel: { zh: '传输方式', en: 'Transport' },
+  envLabel: { zh: '环境变量 JSON（可选）', en: 'Env JSON (optional)' },
+  addSubmit: { zh: '创建', en: 'Create' },
+  addCancel: { zh: '取消', en: 'Cancel' },
+  addDone: { zh: '已创建（停用+待确认）— 探活后确认启用', en: 'Created (disabled + unconfirmed) — probe, then confirm' },
+  addHint: { zh: 'stdio 填命令+参数；远程填 URL。ID 冲突会被拒绝。', en: 'stdio: command+args; remote: URL. Conflicting ids are rejected.' },
+  removeBtn: { zh: '删除', en: 'Remove' },
+  removeConfirm: { zh: '确认删除', en: 'Confirm remove' },
+  removed: { zh: '已删除', en: 'Removed' },
+  permPanel: { zh: '权限', en: 'Permissions' },
+  permFollow: { zh: '跟随模式默认', en: 'Follow mode default' },
+  permAllow: { zh: '放行', en: 'Allow' },
+  permReview: { zh: '审查', en: 'Review' },
+  permOffline: { zh: '已下线', en: 'off-tree' },
+  permDestructive: { zh: '破坏性 — 授权层强制审查，放行无效', en: 'destructive — authz forces review; allow is ineffective' },
+  permReadOnly: { zh: '只读', en: 'read-only' },
+  permLoadFail: { zh: '工具树预读失败', en: 'tool listing failed' },
+  permProbeFirst: { zh: '先探活/确认启用后再预读；也可手动输入工具名', en: 'probe/confirm first; or type a tool name manually' },
+  permManualTool: { zh: '手动加工具名', en: 'manual tool name' },
+  permCommit: { zh: '权限已更新', en: 'permissions updated' },
+  syncPending: { zh: '同步中', en: 'syncing' },
+  syncRetry: { zh: '重试中', en: 'retrying' },
+  syncFail: { zh: '同步失败', en: 'sync failed' },
+  manualTool: { zh: '手动工具', en: 'manual' },
   cfgUnavailable: {
     zh: '配置字段此宿主线不可读（configForms 缺席，老线常态）——连接器管理不受影响；配置可经 cordis.patch.yml 本条目 config 修改。',
     en: 'Config fields unreadable on this host line (no configForms) — connector management is unaffected; edit this entry\'s config in cordis.patch.yml.',
@@ -151,6 +182,13 @@ function configScopeLive(ctx: any): any {
 
 // ── gateway client ──────────────────────────────────────────────────────────
 const GATEWAY_TIMEOUT_MS = 8000
+/** DOM-free window origin (the CJS build has no DOM lib: bare `location` fails typecheck). */
+function pageOrigin(): string {
+  try {
+    const loc = (globalThis as { location?: { origin?: string } }).location
+    return loc && loc.origin && loc.origin !== 'null' ? loc.origin : ''
+  } catch { return '' }
+}
 async function api(method: string, body?: Record<string, unknown>): Promise<any> {
   // Desktop shells may not share the web origin (Electron): a relative URL can
   // hang forever. Bound it with an abort timer; try the absolute same-origin
@@ -165,7 +203,8 @@ async function api(method: string, body?: Record<string, unknown>): Promise<any>
       body: JSON.stringify(body ?? {}),
       signal: ctrl.signal,
     }
-    const base = typeof location !== 'undefined' && location.origin && location.origin !== 'null' ? location.origin + '/' : undefined
+    const origin = pageOrigin()
+    const base = origin ? origin + '/' : undefined
     try {
       res = await fetch(base ? new URL('mcp-registry/api/' + method, base) : API + '/' + method, init)
     } catch (e) {
@@ -256,6 +295,55 @@ function NumInput(props: any): any {
     } })
 }
 
+// ── optimistic sync (0.3.0): local echo + rollback + bounded retries + badge ─
+const RETRY_DELAYS_MS = [500, 1000, 2000]
+
+/** Shared by both truth chains (configForms arm and gateway arm): the UI
+ *  echoes the picked value immediately; submit retries 3x with backoff; a
+ *  final failure rolls the echo back and turns the badge red. */
+function useSyncNow<T>(propValue: T, submit: (value: T) => Promise<void>): { value: T; badge: { phase: string; attempt: number; error: string }; pick: (v: T) => void } {
+  const [overlay, setOverlay] = React.useState(null as { value: T } | null)
+  const [badge, setBadge] = React.useState({ phase: 'idle', attempt: 0, error: '' })
+  const alive = React.useRef(true)
+  React.useEffect(function () { alive.current = true; return function (): void { alive.current = false } }, [])
+  const pick = function (v: T): void {
+    setOverlay({ value: v })
+    let attempt = 0
+    const tryOnce = function (): void {
+      attempt += 1
+      setBadge({ phase: attempt > 1 ? 'retry' : 'pending', attempt, error: '' })
+      submit(v).then(function (): void {
+        if (!alive.current) return
+        setOverlay(null) // the prop now carries the truth
+        setBadge({ phase: 'idle', attempt: 0, error: '' })
+      }).catch(function (e: Error): void {
+        if (!alive.current) return
+        if (attempt < RETRY_DELAYS_MS.length) {
+          setTimeout(tryOnce, RETRY_DELAYS_MS[attempt - 1])
+        } else {
+          setOverlay(null)
+          setBadge({ phase: 'failed', attempt, error: e.message })
+          console.warn('[dsh-mcp-registry] optimistic sync failed after retries:', e.message)
+        }
+      })
+    }
+    tryOnce()
+  }
+  return { value: overlay ? overlay.value : propValue, badge, pick }
+}
+
+const BADGE_COLOR: Record<string, string> = { pending: '#909399', retry: '#e6a23c', failed: '#f56c6c' }
+function SyncBadgeView(props: { badge: { phase: string; attempt: number; error: string } }): any {
+  const b = props.badge
+  const h = React.createElement
+  if (b.phase === 'idle') return null
+  const text = b.phase === 'failed' ? wt('syncFail') : b.phase === 'retry' ? wt('syncRetry') + ' ' + b.attempt + '/3' : wt('syncPending')
+  return h('span', {
+    title: b.error || '',
+    style: { fontSize: '11px', color: BADGE_COLOR[b.phase] ?? 'inherit', cursor: b.error ? 'help' : 'default' },
+  }, '● ' + text)
+}
+
 // ── connector manager ───────────────────────────────────────────────────────
 interface ConnectorRow {
   id: string
@@ -265,6 +353,8 @@ interface ConnectorRow {
   pendingConfirmation: boolean
   permissionMode: string
   grantedTools: string[]
+  /** P1-D: valued per-tool map from publicView — the panel needs allow vs review. */
+  toolPermissions?: Record<string, 'allow' | 'review'>
   trustReadOnlyHint?: boolean
   probe: { ok: boolean; code?: string; message?: string; latencyMs?: number } | null
 }
@@ -279,6 +369,11 @@ function ConnectorManager(): any {
   const [importText, setImportText] = React.useState('')
   const [exportText, setExportText] = React.useState('')
   const [notice, setNotice] = React.useState('')
+  // React #310: every hook must run on EVERY render. showAdd is read by the
+  // toolbar/addPanel below the `damaged` / `rows === null` early returns, so it
+  // has to be declared here, above them — a hook after a conditional return
+  // changes the hook count between the loading render and the loaded render.
+  const [showAdd, setShowAdd] = React.useState(false)
 
   const refresh = React.useCallback(function (): void {
     api('status').then(function (value: any) {
@@ -289,12 +384,12 @@ function ConnectorManager(): any {
   }, [])
   React.useEffect(function () { refresh() }, [refresh])
 
-  const act = React.useCallback(function (method: string, body: Record<string, unknown>, key: string): void {
+  const act = React.useCallback(function (method: string, body: Record<string, unknown>, key: string): Promise<void> {
     setBusy(key)
-    api(method, body).then(function () {
+    return api(method, body).then(function (): void {
       setError('')
       refresh()
-    }).catch(function (e: Error) { setError(e.message) }).finally(function () { setBusy('') })
+    }).catch(function (e: Error) { setError(e.message) }).finally(function (): void { setBusy('') })
   }, [refresh])
 
   if (damaged) {
@@ -302,11 +397,12 @@ function ConnectorManager(): any {
   }
   if (rows === null) {
     return h('div', { style: { padding: '8px 0', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } },
-      '… [diag: origin=' + (typeof location !== 'undefined' ? location.origin : 'n/a') + ']')
+      '… [diag: origin=' + (pageOrigin() || 'n/a') + ']')
   }
 
   const toolbar = h('div', { style: { display: 'flex', gap: '6px', padding: '4px 0' } },
     h('button', { style: BTN, onClick: function () { refresh() } }, wt('refresh')),
+    h('button', { style: BTN, onClick: function () { setShowAdd(!showAdd); setShowImport(false); setExportText('') } }, wt('addBtn')),
     h('button', { style: BTN, onClick: function () { setShowImport(!showImport); setExportText('') } }, wt('importBtn')),
     h('button', {
       style: BTN,
@@ -348,6 +444,10 @@ function ConnectorManager(): any {
       })
     : null
 
+  const addPanel = showAdd
+    ? h(AddConnectorPanel, { key: 'add', onDone: function (msg: string): void { setShowAdd(false); setNotice(msg); refresh() }, onError: function (msg: string): void { setError(msg) } })
+    : null
+
   const list = rows.length === 0
     ? h('div', { style: { padding: '6px 0', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } }, wt('empty'))
     : (rows as ConnectorRow[]).map(function (row: ConnectorRow): any { return h(ConnectorCard, { key: row.id, row: row, act: act, busy: busy }) })
@@ -355,11 +455,205 @@ function ConnectorManager(): any {
   return h('div', { style: { borderTop: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.25))', paddingTop: '6px' } },
     h('div', { style: { fontSize: '12px', fontWeight: 600, color: 'var(--dsw-alias-label-secondary, rgba(127,127,127,.9))', padding: '2px 0 4px' } }, wt('gConnectors')),
     toolbar,
+    addPanel,
     importPanel,
     exportPanel,
     error !== '' ? h('div', { style: { fontSize: '12px', color: '#f56c6c', padding: '4px 0', whiteSpace: 'pre-wrap' } }, error) : null,
     notice !== '' ? h('div', { style: { fontSize: '12px', color: '#67c23a', padding: '4px 0' } }, notice) : null,
     list)
+}
+
+const FIELD_STYLE = { ...INPUT, width: '100%', boxSizing: 'border-box' } as const
+
+/** Manual creation form. The id is REQUIRED here: no generator exists, ids
+ *  must match [a-zA-Z0-9_-]{1,64}, and conflicting ids are rejected (never
+ *  silently replaced — a replace would discard the old record's grants). */
+function AddConnectorPanel(props: { onDone: (msg: string) => void; onError: (msg: string) => void }): any {
+  const h = React.createElement
+  const [id, setId] = React.useState('')
+  const [name, setName] = React.useState('')
+  const [transport, setTransport] = React.useState('stdio')
+  const [command, setCommand] = React.useState('')
+  const [args, setArgs] = React.useState('')
+  const [url, setUrl] = React.useState('')
+  const [env, setEnv] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const idOk = /^[a-zA-Z0-9_-]{1,64}$/.test(id)
+  const submit = function (): void {
+    if (!idOk || busy) return
+    let envObj: Record<string, string> = {}
+    if (env.trim() !== '') {
+      try {
+        envObj = JSON.parse(env)
+      } catch {
+        props.onError(wt('envLabel') + ': JSON')
+        return
+      }
+    }
+    const connector: Record<string, unknown> = { name: name || undefined, transport }
+    if (transport === 'stdio') {
+      connector.command = command
+      connector.args = args.split(/\s+/).filter(Boolean)
+    } else {
+      connector.url = url
+    }
+    connector.env = envObj
+    setBusy(true)
+    api('add', { id: id, connector: connector }).then(function (): void {
+      props.onDone(wt('addDone'))
+    }).catch(function (e: Error): void {
+      props.onError(e.message)
+    }).finally(function (): void { setBusy(false) })
+  }
+  const row = function (label: string, el: any): any {
+    return h('div', { style: { display: 'grid', gridTemplateColumns: '140px 1fr', gap: '6px', alignItems: 'center', padding: '2px 0' } },
+      h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary, rgba(127,127,127,.9))' } }, label), el)
+  }
+  return h('div', { style: { border: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.35))', borderRadius: '8px', padding: '8px', margin: '4px 0' } },
+    h('div', { style: { fontSize: '12px', fontWeight: 600, padding: '2px 0' } }, wt('addHeading')),
+    h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', padding: '2px 0 6px' } }, wt('addHint')),
+    row(wt('idLabel'), h('input', { value: id, style: { ...MONO, ...FIELD_STYLE }, onChange: function (this: any, e: any): void { setId(e.target.value) } })),
+    id !== '' && !idOk ? h('div', { style: { fontSize: '11px', color: '#f56c6c' } }, wt('idLabel')) : null,
+    row(wt('nameLabel'), h('input', { value: name, style: FIELD_STYLE, onChange: function (this: any, e: any): void { setName(e.target.value) } })),
+    row(wt('transportLabel'), h('select', { value: transport, style: FIELD_STYLE, onChange: function (this: any, e: any): void { setTransport(e.target.value) } },
+      h('option', { value: 'stdio' }, 'stdio'),
+      h('option', { value: 'streamable-http' }, 'streamable-http'))),
+    transport === 'stdio' ? row(wt('commandLabel'), h('input', { value: command, style: { ...MONO, ...FIELD_STYLE }, onChange: function (this: any, e: any): void { setCommand(e.target.value) } })) : null,
+    transport === 'stdio'
+      ? row(wt('argsLabel'), h('input', { value: args, style: { ...MONO, ...FIELD_STYLE }, onChange: function (this: any, e: any): void { setArgs(e.target.value) } }))
+      : row(wt('urlLabel'), h('input', { value: url, style: { ...MONO, ...FIELD_STYLE }, onChange: function (this: any, e: any): void { setUrl(e.target.value) } })),
+    row(wt('envLabel'), h('input', { value: env, style: { ...MONO, ...FIELD_STYLE }, onChange: function (this: any, e: any): void { setEnv(e.target.value) } })),
+    h('div', { style: { display: 'flex', gap: '6px', paddingTop: '6px' } },
+      h('button', { style: BTN, disabled: !idOk || busy, onClick: submit }, wt('addSubmit') + (busy ? wt('working') : '')),
+      h('button', { style: BTN, onClick: function (): void { props.onDone('') } }, wt('addCancel'))))
+}
+
+interface ToolListingLite { name: string; description: string; annotations: Record<string, unknown> }
+
+/** Per-connector fine-grained policy: on open, PRE-READ the connector's MCP
+ *  tool tree (gateway tools → bridge.listTools) and render one allow/review
+ *  row per discovered tool. Values come from the P1-D projection so the
+ *  current state is restorable. Failure is the NORM for fresh connectors
+ *  (they land disabled+pending): degrade to manual tool-name rows. All
+ *  changes commit the WHOLE map in one policy call (no per-tool races). */
+function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body: Record<string, unknown>, key: string) => Promise<void>; busy: string }): any {
+  const row = props.row
+  const h = React.createElement
+  const [tools, setTools] = React.useState(null as ToolListingLite[] | null)
+  const [loadErr, setLoadErr] = React.useState('')
+  const [local, setLocal] = React.useState(((): Record<string, 'allow' | 'review' | ''> => {
+    const m: Record<string, 'allow' | 'review' | ''> = {}
+    for (const k of Object.keys(row.toolPermissions ?? {})) m[k] = (row.toolPermissions as Record<string, 'allow' | 'review' | undefined>)[k] ?? ''
+    return m
+  })())
+  const [manual, setManual] = React.useState('')
+  const [badge, setBadge] = React.useState({ phase: 'idle', attempt: 0, error: '' })
+
+  React.useEffect(function (): () => void {
+    let alive = true
+    api('tools', { id: row.id }).then(function (v: any): void {
+      if (!alive) return
+      setTools((v.tools ?? []) as ToolListingLite[])
+    }).catch(function (e: Error): void {
+      if (!alive) return
+      setLoadErr(e.message)
+      setTools([])
+    })
+    return function (): void { alive = false }
+  }, [row.id])
+
+  const commit: (next: Record<string, 'allow' | 'review' | ''>) => void = function (next: Record<string, 'allow' | 'review' | ''>): void {
+    setLocal(next)
+    const map: Record<string, 'allow' | 'review'> = {}
+    for (const [k, v] of Object.entries(next)) {
+      if (v === 'allow' || v === 'review') map[k] = v
+    }
+    let attempt = 0
+    const tryOnce = function (): void {
+      attempt += 1
+      setBadge({ phase: attempt > 1 ? 'retry' : 'pending', attempt, error: '' })
+      props.act('policy', { id: row.id, toolPermissions: map }, row.id + ':permmap').then(function (): void {
+        setBadge({ phase: 'idle', attempt: 0, error: '' })
+      }).catch(function (e: Error): void {
+        if (attempt < RETRY_DELAYS_MS.length) setTimeout(tryOnce, RETRY_DELAYS_MS[attempt - 1])
+        else setBadge({ phase: 'failed', attempt, error: e.message })
+      })
+    }
+    tryOnce()
+  }
+  const setTool = function (tool: string, v: 'allow' | 'review' | ''): void {
+    commit(Object.assign({}, local, { [tool]: v }))
+  }
+
+  if (tools === null) {
+    return h('div', { style: { padding: '4px 0', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } }, '…')
+  }
+  const byName = new Map<string, ToolListingLite>()
+  for (const t of tools) byName.set(t.name, t)
+  // off-tree: entries in the policy map that the current tree no longer lists.
+  const offTree = Object.keys(local).filter(function (k): boolean { return !byName.has(k) })
+  const treeNames = [...byName.keys()]
+
+  const toolRow = function (name: string, info: ToolListingLite | undefined): any {
+    const destructive = info?.annotations?.destructiveHint === true
+    const readOnly = info?.annotations?.readOnlyHint === true
+    const value = local[name] ?? ''
+    return h('div', { key: name, style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0', borderTop: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.15))' } },
+      h('span', { style: { ...MONO, fontSize: '12px', minWidth: '140px' } }, name),
+      info && info.description
+        ? h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', flex: '1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: info.description }, info.description)
+        : h('span', { style: { flex: '1' } }),
+      !info ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#e6a23c' } }, wt('permOffline')) : null,
+      readOnly ? h('span', { style: { ...CHIP, fontSize: '10px' } }, wt('permReadOnly')) : null,
+      destructive ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#f56c6c' }, title: wt('permDestructive') }, '⚠ ' + wt('permDestructive')) : null,
+      h('select', {
+        value: value, style: { ...INPUT, width: 'auto' },
+        onChange: function (this: any, e: any): void {
+          const v = e.target.value as 'allow' | 'review' | ''
+          if (destructive && v === 'allow') return // authz rule 1 forces review anyway
+          setTool(name, v)
+        },
+      },
+        h('option', { value: '' }, wt('permFollow')),
+        h('option', { value: 'allow', disabled: destructive }, wt('permAllow')),
+        h('option', { value: 'review' }, wt('permReview'))),
+      h('button', { style: { ...BTN, fontSize: '11px' }, onClick: function (): void { setTool(name, '') } }, '×'))
+  }
+
+  return h('div', { style: { border: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.3))', borderRadius: '8px', padding: '6px 8px', margin: '4px 0' } },
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+      h('span', { style: { fontSize: '12px', fontWeight: 600 } }, wt('permPanel')),
+      h(SyncBadgeView, { badge: badge })),
+    loadErr !== ''
+      ? h('div', { style: { fontSize: '11px', color: '#e6a23c', padding: '2px 0' } }, wt('permLoadFail') + ': ' + loadErr + ' — ' + wt('permProbeFirst'))
+      : null,
+    treeNames.length === 0 && loadErr === ''
+      ? h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', padding: '2px 0' } }, wt('permProbeFirst'))
+      : null,
+    treeNames.map(function (n: string): any { return toolRow(n, byName.get(n)) }),
+    offTree.map(function (n: string): any { return toolRow(n, undefined) }),
+    h('div', { style: { display: 'flex', gap: '6px', paddingTop: '4px', alignItems: 'center' } },
+      h('input', {
+        value: manual, placeholder: wt('permManualTool'), style: { ...INPUT, width: '200px' },
+        onChange: function (this: any, e: any): void { setManual(e.target.value) },
+        onKeyDown: function (this: any, e: any): void {
+          if (e.key === 'Enter' && manual.trim() !== '') {
+            setTool(manual.trim(), 'review')
+            setManual('')
+          }
+        },
+      }),
+      h('button', {
+        style: BTN,
+        onClick: function (): void {
+          if (manual.trim() === '') return
+          setTool(manual.trim(), 'review')
+          setManual('')
+        },
+      }, '+')),
+    badge.phase === 'idle' && Object.keys(local).some(function (k): boolean { return local[k] !== '' })
+      ? h('div', { style: { fontSize: '11px', color: '#67c23a', padding: '2px 0' } }, wt('permCommit'))
+      : null)
 }
 
 function probeBadge(row: ConnectorRow): { text: string; color: string } {
@@ -375,6 +669,16 @@ function ConnectorCard(props: any): any {
   const busy = props.busy
   const h = React.createElement
   const [grantText, setGrantText] = React.useState('')
+  const [confirmRemove, setConfirmRemove] = React.useState(false)
+  const [permOpen, setPermOpen] = React.useState(false)
+
+  // Optimistic echo for the mode select and the trust checkbox (gateway arm).
+  const mode = useSyncNow(row.permissionMode, function (v: string): Promise<void> {
+    return act('policy', { id: row.id, permissionMode: v }, row.id + ':mode')
+  })
+  const trust = useSyncNow(row.trustReadOnlyHint === true, function (v: boolean): Promise<void> {
+    return act('policy', { id: row.id, trustReadOnlyHint: v }, row.id + ':trust')
+  })
   const badge = probeBadge(row)
   const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
     h('span', { style: { ...MONO, fontWeight: 600 } }, row.id),
@@ -384,28 +688,37 @@ function ConnectorCard(props: any): any {
     h('span', { style: { fontSize: '11px', color: badge.color } }, badge.text))
   const policyLine = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '3px 0' } },
     h('select', {
-      value: row.permissionMode, style: INPUT,
-      onChange: function (this: any, e: any) { act('policy', { id: row.id, permissionMode: e.target.value }, row.id + ':mode') },
+      value: mode.value, style: INPUT,
+      onChange: function (this: any, e: any) { mode.pick(e.target.value) },
     },
       h('option', { value: 'review-all' }, wt('modeReviewAll')),
       h('option', { value: 'allowlist' }, wt('modeAllowlist'))),
+    h(SyncBadgeView, { badge: mode.badge }),
     h('label', { style: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' } },
       h('input', {
         type: 'checkbox',
-        checked: row.trustReadOnlyHint === true,
+        checked: trust.value,
         title: wt('trust'),
-        onChange: function () { act('policy', { id: row.id, trustReadOnlyHint: !(row.trustReadOnlyHint === true) }, row.id + ':trust') },
+        onChange: function () { trust.pick(!trust.value) },
       }),
       wt('trust')),
-    h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-secondary, rgba(127,127,127,.9))' } }, wt('grants') + ':'),
-    row.grantedTools.length === 0
-      ? h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.7))' } }, '—')
-      : row.grantedTools.map(function (tool: string): any {
-          return h('span', {
-            key: tool, style: { ...CHIP, cursor: 'pointer', fontSize: '11px' }, title: wt('grants'),
-            onClick: function () { act('policy', { id: row.id, revoke: tool }, row.id + ':revoke:' + tool) },
-          }, tool + ' ×')
-        }),
+    h(SyncBadgeView, { badge: trust.badge }),
+    h('button', { style: BTN, onClick: function () { setPermOpen(!permOpen) } },
+      wt('permPanel') + (permOpen ? ' ▲' : ' ▼')),
+    (function (): any {
+      // P1-D: chips carry the VALUE — a review entry must not read as granted.
+      const map = row.toolPermissions ?? {}
+      const keys = Object.keys(map)
+      if (keys.length === 0) return h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.7))' } }, '—')
+      return keys.map(function (tool: string): any {
+        const isAllow = map[tool] === 'allow'
+        return h('span', {
+          key: tool, style: { ...CHIP, cursor: 'pointer', fontSize: '11px', color: isAllow ? 'inherit' : '#e6a23c' },
+          title: wt('grants') + ': ' + (isAllow ? wt('permAllow') : wt('permReview')),
+          onClick: function () { act('policy', { id: row.id, revoke: tool }, row.id + ':revoke:' + tool) },
+        }, tool + (isAllow ? ' ×' : ' ⧗ ×'))
+      })
+    })(),
     h('input', {
       value: grantText, placeholder: wt('grantPlaceholder'), style: { ...INPUT, width: '160px' },
       onChange: function (this: any, e: any) { setGrantText(e.target.value) },
@@ -424,9 +737,22 @@ function ConnectorCard(props: any): any {
     h('button', {
       style: BTN,
       onClick: function () { act(row.enabled ? 'disable' : 'enable', { id: row.id }, row.id + ':toggle') },
-    }, row.enabled ? wt('disable') : wt('enable')))
+    }, row.enabled ? wt('disable') : wt('enable')),
+    h('button', {
+      style: { ...BTN, color: confirmRemove ? '#f56c6c' : 'inherit', borderColor: confirmRemove ? '#f56c6c' : undefined },
+      onClick: function () {
+        if (!confirmRemove) {
+          setConfirmRemove(true)
+          setTimeout(function (): void { setConfirmRemove(false) }, 5000)
+          return
+        }
+        setConfirmRemove(false)
+        act('remove', { id: row.id }, row.id + ':remove')
+      },
+    }, confirmRemove ? wt('removeConfirm') : wt('removeBtn')))
   return h('div', { style: { borderBottom: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.2))', padding: '6px 0' } },
-    head, policyLine, actions)
+    head, policyLine, actions,
+    permOpen ? h(PermissionPanel, { key: row.id + ':perm', row: row, act: act, busy: busy }) : null)
 }
 
 // ── the full card ────────────────────────────────────────────────────────────
@@ -441,20 +767,61 @@ function SettingsCard(props: any): any {
     const timer = setInterval(function () { rerender(function (n: number): number { return n + 1 }) }, 500)
     return function (): void { clearInterval(timer) }
   }, [])
-  if (!scope || typeof scope.getSnapshot !== 'function') {
+  const scopeReady = Boolean(scope) && typeof scope.getSnapshot === 'function'
+  // React #310: EVERY hook must run on every render, so all of them sit above
+  // the `cfgUnavailable` early return. The external store and the memo are
+  // guarded *internally* (scopeReady) rather than skipped by the return — a
+  // hook below a conditional return changes the hook count between the
+  // "scope not yet arrived" render and the "scope present" render (the ≤0.1.5
+  // polling getter lands late, so this path is live on the old lines).
+  const [modeEcho, setModeEcho] = React.useState(null as { value: unknown } | null)
+  const [modeBadge, setModeBadge] = React.useState({ phase: 'idle', attempt: 0, error: '' })
+  const snapshot = React.useSyncExternalStore(
+    function (listener: () => void) { return scopeReady ? scope.subscribe(listener) : function (): void {} },
+    function () { return scopeReady ? scope.getSnapshot() : null },
+  )
+  // Optimistic echo for defaultPermissionMode ONLY (per-field opt-in on the
+  // shared FieldRow path — enabled/probeTimeoutMs keep the plain write path).
+  // The configForms arm is the truth chain here: set() resolve = synced.
+  const echoScope = React.useMemo(function (): any {
+    return Object.assign({}, scope, {
+      set: function (key: string, v: unknown): Promise<void> {
+        if (key !== 'defaultPermissionMode') return Promise.resolve(scope.set(key, v))
+        setModeEcho({ value: v })
+        let attempt = 0
+        const tryOnce = function (): void {
+          attempt += 1
+          setModeBadge({ phase: attempt > 1 ? 'retry' : 'pending', attempt, error: '' })
+          Promise.resolve(scope.set(key, v)).then(function (): void {
+            setModeEcho(null)
+            setModeBadge({ phase: 'idle', attempt: 0, error: '' })
+          }).catch(function (e: Error): void {
+            if (attempt < RETRY_DELAYS_MS.length) setTimeout(tryOnce, RETRY_DELAYS_MS[attempt - 1])
+            else {
+              setModeEcho(null)
+              setModeBadge({ phase: 'failed', attempt, error: e.message })
+              console.warn('[dsh-mcp-registry] defaultPermissionMode sync failed:', e.message)
+            }
+          })
+        }
+        tryOnce()
+        return Promise.resolve()
+      },
+    })
+  }, [scope])
+  if (!scopeReady) {
     return h('div', { style: { padding: '8px 0', fontSize: '12px', color: 'var(--dsh-alias-label-tertiary, rgba(127,127,127,.8))' } },
       wt('cfgUnavailable'))
   }
-  const snapshot = React.useSyncExternalStore(
-    function (listener: () => void) { return scope.subscribe(listener) },
-    function () { return scope.getSnapshot() },
-  )
-  const value = snapshot.value || {}
-  const writable = snapshot.writable === true
+  const value = (snapshot && snapshot.value) || {}
+  const writable = Boolean(snapshot) && snapshot.writable === true
+  const effectiveValue = modeEcho ? { ...value, defaultPermissionMode: modeEcho.value } : value
+
   return h('div', { style: { display: 'grid', gap: '8px' } },
     FIELD_GROUPS.map(function (group) {
-      return h(GroupBlock, { key: group.gk, group: group, value: value, writable: writable, scope: scope })
+      return h(GroupBlock, { key: group.gk, group: group, value: effectiveValue, writable: writable, scope: echoScope })
     }),
+    modeBadge.phase !== 'idle' ? h(SyncBadgeView, { badge: modeBadge }) : null,
     h(ConnectorManager, { key: 'connectors' }))
 }
 
