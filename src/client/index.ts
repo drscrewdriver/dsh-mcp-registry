@@ -254,8 +254,11 @@ function FieldRow(props: any): any {
   const writable = props.writable
   const scope = props.scope
   const h = React.createElement
-  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '6px 0' }
-  const label = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, maxWidth: '100%' } },
+  const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '6px 0', minWidth: 0 }
+  // flex:'1 1 0' + minWidth:0 is what keeps the label/description column from
+  // negotiating its intrinsic width and squeezing the control off the row's
+  // right edge (the clipped mode select); the control side never shrinks.
+  const label = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 0', minWidth: 0 } },
     h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-primary, inherit)' } }, wt(f.lk)),
     // Field descriptions clamp to 2 lines; the full text rides the hover bubble
     // (title). Unclamped, the long defaultPermissionMode copy stretched the
@@ -264,12 +267,12 @@ function FieldRow(props: any): any {
 
   if (f.kind === 'bool') {
     return h('div', { style: rowStyle }, label,
-      h('input', { type: 'checkbox', checked: value[f.k] === true, disabled: !writable,
+      h('input', { type: 'checkbox', checked: value[f.k] === true, disabled: !writable, style: { flexShrink: 0 },
         onChange: function (this: any, e: any) { void scope.set(f.k, e.target.checked) } }))
   }
   if (f.kind === 'sel') {
     return h('div', { style: rowStyle }, label,
-      h('select', { value: String(value[f.k] ?? (f.options as string[])[0]), disabled: !writable, style: INPUT,
+      h('select', { value: String(value[f.k] ?? (f.options as string[])[0]), disabled: !writable, style: { ...INPUT, flexShrink: 0 },
         onChange: function (this: any, e: any) { void scope.set(f.k, e.target.value) } },
         (f.options as string[]).map(function (o) {
           const labelKey = f.optionLabels?.[o]
@@ -286,7 +289,7 @@ function NumInput(props: any): any {
   const v = draft[0]
   const setV = draft[1]
   React.useEffect(function () { setV(props.v === undefined || props.v === null ? '' : String(props.v)) }, [props.v])
-  return h('input', { type: 'number', min: f.min, max: f.max, step: f.step, value: v, disabled: !props.writable, style: { ...INPUT, width: '96px' },
+  return h('input', { type: 'number', min: f.min, max: f.max, step: f.step, value: v, disabled: !props.writable, style: { ...INPUT, width: '96px', flexShrink: 0 },
     onChange: function (this: any, e: any) { setV(e.target.value) },
     onBlur: function (this: any) {
       if (v === '') return
@@ -602,30 +605,32 @@ function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body:
     const destructive = info?.annotations?.destructiveHint === true
     const readOnly = info?.annotations?.readOnlyHint === true
     const value = local[name] ?? ''
-    return h('div', { key: name, style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0', borderTop: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.15))', minWidth: '0' } },
-      h('span', { style: { ...MONO, fontSize: '12px', display: 'inline-block', minWidth: '140px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: name }, name),
-      info && info.description
-        // Hard maxWidth: the flex-chain min-width:0 trick alone did NOT hold —
-        // the settings grid's min-content sizing propagated the longest tool
-        // description all the way up and stretched the whole dialog. A fixed
-        // cap cannot be out-negotiated; the full text rides the title bubble.
-        ? h('span', { style: { fontSize: '11px', display: 'inline-block', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', flex: '0 1 auto', minWidth: '0', maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: info.description }, info.description)
-        : h('span', { style: { flex: '1 1 0', minWidth: '0' } }),
-      !info ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#e6a23c' } }, wt('permOffline')) : null,
-      readOnly ? h('span', { style: { ...CHIP, fontSize: '10px' } }, wt('permReadOnly')) : null,
-      destructive ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#f56c6c' }, title: wt('permDestructive') }, '⚠ ' + wt('permDestructive')) : null,
-      h('select', {
-        value: value, style: { ...INPUT, width: 'auto' },
-        onChange: function (this: any, e: any): void {
-          const v = e.target.value as 'allow' | 'review' | ''
-          if (destructive && v === 'allow') return // authz rule 1 forces review anyway
-          setTool(name, v)
+    return h('div', { key: name, style: { display: 'flex', flexDirection: 'column', gap: '2px', padding: '3px 0', borderTop: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.15))', minWidth: 0 } },
+      // Two-row tool entry: the control row (name + chips + select + remove)
+      // wraps on its own, and the description rides a BLOCK second row — a
+      // block child fills its parent instead of negotiating intrinsic width,
+      // so no 500-character MCP description can stretch the dialog again.
+      // Full text rides the title hover bubble in both rows.
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 } },
+        h('span', { style: { ...MONO, fontSize: '12px', display: 'inline-block', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: name }, name),
+        !info ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#e6a23c' } }, wt('permOffline')) : null,
+        readOnly ? h('span', { style: { ...CHIP, fontSize: '10px' } }, wt('permReadOnly')) : null,
+        destructive ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#f56c6c' }, title: wt('permDestructive') }, '⚠ ' + wt('permDestructive')) : null,
+        h('select', {
+          value: value, style: { ...INPUT, width: 'auto', flexShrink: 0 },
+          onChange: function (this: any, e: any): void {
+            const v = e.target.value as 'allow' | 'review' | ''
+            if (destructive && v === 'allow') return // authz rule 1 forces review anyway
+            setTool(name, v)
+          },
         },
-      },
-        h('option', { value: '' }, wt('permFollow')),
-        h('option', { value: 'allow', disabled: destructive }, wt('permAllow')),
-        h('option', { value: 'review' }, wt('permReview'))),
-      h('button', { style: { ...BTN, fontSize: '11px' }, onClick: function (): void { setTool(name, '') } }, '×'))
+          h('option', { value: '' }, wt('permFollow')),
+          h('option', { value: 'allow', disabled: destructive }, wt('permAllow')),
+          h('option', { value: 'review' }, wt('permReview'))),
+        h('button', { style: { ...BTN, fontSize: '11px', flexShrink: 0 }, onClick: function (): void { setTool(name, '') } }, '×')),
+      info && info.description
+        ? h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '2px' }, title: info.description }, info.description)
+        : null)
   }
 
   return h('div', { style: { border: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.3))', borderRadius: '8px', padding: '6px 8px', margin: '4px 0', minWidth: 0, maxWidth: '100%', overflow: 'hidden' } },
