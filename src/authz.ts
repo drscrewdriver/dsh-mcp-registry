@@ -25,7 +25,8 @@
 export type AccessKind = 'allow' | 'review'
 
 export interface AccessPolicy {
-  /** Connector-level mode; anything but 'allowlist' reviews everything. */
+  /** Connector-level mode: 'review-all' reviews everything, 'allowlist' grants
+   *  only explicit allows, 'allow-all' grants by default under two vetoes. */
   permissionMode: unknown
   /** Per-tool explicit grant; unknown values are treated as absent. */
   toolPermission: unknown
@@ -48,9 +49,19 @@ export interface LiveEvidence {
 export const NO_EVIDENCE: LiveEvidence = { listed: false }
 
 export function resolveToolAccess(policy: AccessPolicy, evidence: LiveEvidence = NO_EVIDENCE): AccessKind {
-  if (policy.permissionMode !== 'allowlist') return 'review'
-
   const annotations = evidence.listed && evidence.annotations ? evidence.annotations : null
+
+  // 'allow-all': the mode itself is the grant, but two vetoes survive — a
+  // known-destructive tool is never silently approved (rule 1), and an
+  // explicit per-tool 'review' is honoured. Anything else runs. This is the
+  // opt-out counterpart to 'allowlist' (opt-in), not an unconditional bypass.
+  if (policy.permissionMode === 'allow-all') {
+    if (annotations?.destructiveHint === true) return 'review'
+    if (policy.toolPermission === 'review') return 'review'
+    return 'allow'
+  }
+
+  if (policy.permissionMode !== 'allowlist') return 'review'
 
   // Rule 1: known-destructive is a hard veto over every grant below.
   if (annotations?.destructiveHint === true) return 'review'

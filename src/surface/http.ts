@@ -180,7 +180,7 @@ export function registerMcpRegistryGateway(ctx: McpRegistryContext, deps: Gatewa
             trustReadOnlyHint?: boolean
             toolPermissions?: Record<string, 'allow' | 'review'>
           } = {}
-          if (body.permissionMode === 'review-all' || body.permissionMode === 'allowlist') {
+          if (body.permissionMode === 'review-all' || body.permissionMode === 'allowlist' || body.permissionMode === 'allow-all') {
             patch.permissionMode = body.permissionMode
           }
           if (typeof body.trustReadOnlyHint === 'boolean') patch.trustReadOnlyHint = body.trustReadOnlyHint

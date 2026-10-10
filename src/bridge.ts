@@ -182,11 +182,14 @@ export class McpBridge {
       }
       const kind = resolveToolAccess(policy, { listed: this.evidence.has(id), annotations })
       if (kind === 'review') {
+        const mode = record.permissionMode ?? defaultMode
         return {
           ok: false,
           status: 'needs_review',
           reason: reviewReason(record, toolName, annotations),
-          hint: `The connector owner can run: mcp-reg mode ${record.id} allowlist && mcp-reg grant ${record.id} ${toolName} — or call it themselves via mcp-reg call.`,
+          hint: mode === 'allow-all'
+            ? 'Under allow-all this tool is held only by a veto (destructive, or an explicit per-tool review); clear it in the connector permission panel or run mcp-reg call.'
+            : `The connector owner can run: mcp-reg mode ${record.id} allowlist && mcp-reg grant ${record.id} ${toolName} — or call it themselves via mcp-reg call.`,
         }
       }
     }

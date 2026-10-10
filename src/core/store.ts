@@ -16,7 +16,7 @@
  * The file IO is injected so tests run on an in-memory filesystem.
  */
 import { sanitizeId, safeAssign } from './ids.ts'
-import { normalizeConnectorInput, McpRecordError, type ConnectorRecord } from './model.ts'
+import { normalizeConnectorInput, McpRecordError, type ConnectorRecord, type PermissionMode, type ToolPermission } from './model.ts'
 
 export interface StoreFileIo {
   readFile(path: string): string | null
@@ -230,8 +230,8 @@ export class RegistryStore {
   updatePolicy(
     id: string,
     patch: {
-      permissionMode?: 'review-all' | 'allowlist'
-      toolPermissions?: Record<string, 'allow' | 'review'>
+      permissionMode?: PermissionMode
+      toolPermissions?: Record<string, ToolPermission>
       trustReadOnlyHint?: boolean
     },
   ): ConnectorRecord {

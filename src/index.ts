@@ -107,7 +107,7 @@ export function apply(ctx: McpRegistryContext, config: RawConfig = {}): void {
         if (!cfg.enabled || store.isDamaged()) return []
         return store
           .list()
-          .filter((c) => c.enabled && !c.pendingConfirmation && c.permissionMode === 'allowlist')
+          .filter((c) => c.enabled && !c.pendingConfirmation && (c.permissionMode === 'allowlist' || c.permissionMode === 'allow-all'))
           .map((c) => publicView(c))
       },
     }

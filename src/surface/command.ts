@@ -35,7 +35,7 @@ const HELP = `mcp-reg — MCP connector registry console
   mcp-reg export [--secrets]         export mcpServers JSON (secrets masked unless --secrets)
   mcp-reg confirm <id>               confirm an imported connector and enable it
   mcp-reg enable|disable <id>        flip the enabled switch
-  mcp-reg mode <id> <review-all|allowlist>   set the permission mode
+  mcp-reg mode <id> <review-all|allowlist|allow-all>   set the permission mode
   mcp-reg grant <id> <tool|*>        allow a tool (or all) for agent calls
   mcp-reg revoke <id> <tool|*>       drop tool grants (back to review)
   mcp-reg trust <id> <on|off>        trust the server's readOnlyHint for ungranted tools
@@ -173,8 +173,8 @@ function dispatch(input: string, deps: McpRegDeps): string | Promise<string> {
     case 'mode': {
       const id = rest[0] ?? ''
       const mode = rest[1] ?? ''
-      if (!id || (mode !== 'review-all' && mode !== 'allowlist')) {
-        return 'usage: mcp-reg mode <id> <review-all|allowlist>'
+      if (!id || (mode !== 'review-all' && mode !== 'allowlist' && mode !== 'allow-all')) {
+        return 'usage: mcp-reg mode <id> <review-all|allowlist|allow-all>'
       }
       return withRecord(store, id, (c) => {
         store.updatePolicy(c.id, { permissionMode: mode })

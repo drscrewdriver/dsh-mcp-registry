@@ -17,7 +17,7 @@
 import { sanitizeId, safeAssign, isUnsafeKey } from './ids.ts'
 
 export type ConnectorTransport = 'stdio' | 'streamable-http'
-export type PermissionMode = 'review-all' | 'allowlist'
+export type PermissionMode = 'review-all' | 'allowlist' | 'allow-all'
 export type ToolPermission = 'allow' | 'review'
 export type Provenance = 'manual' | 'import'
 
@@ -60,7 +60,7 @@ export const MASK = '********'
 
 const ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/
 const HEADER_KEY = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/
-const PERMISSION_MODES = new Set<string>(['review-all', 'allowlist'])
+const PERMISSION_MODES = new Set<string>(['review-all', 'allowlist', 'allow-all'])
 const TOOL_PERMISSIONS = new Set<string>(['allow', 'review'])
 
 const CAP = {

@@ -79,3 +79,22 @@ describe('mergeAnnotations â€” merging only ever raises scrutiny', () => {
     expect(merged.readOnlyHint).toBe(true)
   })
 })
+
+describe('resolveToolAccess â€?allow-all (default-allow) mode', () => {
+  it('grants ungranted tools without evidence or annotations', () => {
+    expect(resolveToolAccess(policy({ permissionMode: 'allow-all' }), evidence())).toBe('allow')
+    // no live listing at all: the mode still carries it (unlike allowlist)
+    expect(resolveToolAccess(policy({ permissionMode: 'allow-all' }))).toBe('allow')
+  })
+
+  it('destructive veto survives the default grant', () => {
+    expect(resolveToolAccess(policy({ permissionMode: 'allow-all' }), evidence({ annotations: { destructiveHint: true } }))).toBe('review')
+    // even an explicit allow does not lift the destructive veto
+    expect(resolveToolAccess(policy({ permissionMode: 'allow-all', toolPermission: 'allow' }), evidence({ annotations: { destructiveHint: true } }))).toBe('review')
+  })
+
+  it('explicit per-tool review is the opt-out exception', () => {
+    expect(resolveToolAccess(policy({ permissionMode: 'allow-all', toolPermission: 'review' }), evidence())).toBe('review')
+    expect(resolveToolAccess(policy({ permissionMode: 'allow-all', toolPermission: 'allow' }), evidence())).toBe('allow')
+  })
+})

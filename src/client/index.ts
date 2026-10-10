@@ -81,11 +81,12 @@ const DICT: Record<string, { zh: string; en: string }> = {
   enabled: { zh: '总开关', en: 'Master switch' },
   enabledDesc: { zh: '关闭后 mcp_bridge_call 拒绝调用、状态工具报告禁用（注册表数据不受影响）。', en: 'Off = mcp_bridge_call refuses and the status tool reports disabled (registry data is untouched).' },
   defaultPermissionMode: { zh: '默认授权模式', en: 'Default permission mode' },
-  defaultPermissionModeDesc: { zh: 'review-all（安全默认）：agent 调用一律返回 needs_review，直到你显式放行；allowlist：仅显式放行的工具静默执行。', en: 'review-all (safe default): agent calls return needs_review until granted; allowlist: only granted tools run silently.' },
+  defaultPermissionModeDesc: { zh: 'review-all（安全默认）：agent 调用一律返回 needs_review，直到你显式放行；allowlist：仅显式放行的工具静默执行；allow-all：默认放行全部工具，破坏性工具和显式标记「审查」的工具除外。', en: 'review-all (safe default): agent calls return needs_review until granted; allowlist: only granted tools run silently; allow-all: every tool runs unless it is destructive or explicitly marked for review.' },
   probeTimeoutMs: { zh: '探活超时 (ms)', en: 'Probe timeout (ms)' },
   probeTimeoutMsDesc: { zh: '一次 MCP initialize 握手的超时。', en: 'Timeout for one MCP initialize handshake.' },
   modeReviewAll: { zh: '全部审查', en: 'Review all' },
   modeAllowlist: { zh: '白名单放行', en: 'Allowlist' },
+  modeAllowAll: { zh: '默认放行', en: 'Allow all' },
   gConnectors: { zh: '连接器', en: 'Connectors' },
   refresh: { zh: '刷新', en: 'Refresh' },
   importBtn: { zh: '导入', en: 'Import' },
@@ -134,8 +135,8 @@ const FIELD_GROUPS: Array<{ gk: string; fields: FieldSpec[] }> = [
     { k: 'enabled', kind: 'bool', lk: 'enabled', dk: 'enabledDesc' },
     {
       k: 'defaultPermissionMode', kind: 'sel', lk: 'defaultPermissionMode', dk: 'defaultPermissionModeDesc',
-      options: ['review-all', 'allowlist'],
-      optionLabels: { 'review-all': 'modeReviewAll', 'allowlist': 'modeAllowlist' },
+      options: ['review-all', 'allowlist', 'allow-all'],
+      optionLabels: { 'review-all': 'modeReviewAll', 'allowlist': 'modeAllowlist', 'allow-all': 'modeAllowAll' },
     },
     { k: 'probeTimeoutMs', kind: 'num', min: 200, max: 30000, step: 100, lk: 'probeTimeoutMs', dk: 'probeTimeoutMsDesc' },
   ] },
@@ -598,11 +599,15 @@ function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body:
     const destructive = info?.annotations?.destructiveHint === true
     const readOnly = info?.annotations?.readOnlyHint === true
     const value = local[name] ?? ''
-    return h('div', { key: name, style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0', borderTop: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.15))' } },
-      h('span', { style: { ...MONO, fontSize: '12px', minWidth: '140px' } }, name),
+    return h('div', { key: name, style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0', borderTop: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.15))', minWidth: '0' } },
+      h('span', { style: { ...MONO, fontSize: '12px', minWidth: '140px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: name }, name),
       info && info.description
-        ? h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', flex: '1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: info.description }, info.description)
-        : h('span', { style: { flex: '1' } }),
+        // flex children default to min-width:auto, which refuses to shrink below
+        // the text — the ellipsis never fires and one long MCP description
+        // stretches the whole panel. minWidth:0 is what lets it truncate;
+        // the title attr is the hover bubble carrying the full text.
+        ? h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', flex: '1 1 0', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: info.description }, info.description)
+        : h('span', { style: { flex: '1 1 0', minWidth: '0' } }),
       !info ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#e6a23c' } }, wt('permOffline')) : null,
       readOnly ? h('span', { style: { ...CHIP, fontSize: '10px' } }, wt('permReadOnly')) : null,
       destructive ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#f56c6c' }, title: wt('permDestructive') }, '⚠ ' + wt('permDestructive')) : null,
@@ -692,7 +697,8 @@ function ConnectorCard(props: any): any {
       onChange: function (this: any, e: any) { mode.pick(e.target.value) },
     },
       h('option', { value: 'review-all' }, wt('modeReviewAll')),
-      h('option', { value: 'allowlist' }, wt('modeAllowlist'))),
+      h('option', { value: 'allowlist' }, wt('modeAllowlist')),
+      h('option', { value: 'allow-all' }, wt('modeAllowAll'))),
     h(SyncBadgeView, { badge: mode.badge }),
     h('label', { style: { display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' } },
       h('input', {

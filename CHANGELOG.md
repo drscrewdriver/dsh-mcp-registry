@@ -1,5 +1,17 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.3.4 (2026-10-10) — 新增「默认放行」权限模式；权限面板宽度修复
+
+### 新增
+- **`allow-all`（默认放行）权限模式**：第三种连接器级模式，语义为「默认全部放行，两个否决权保留」——① 服务端申报 destructiveHint 的工具永不静默批准（rule 1 不放宽）；② 逐工具显式标记「审查」仍走 needs_review（opt-out 例外）。贯通全链：`PermissionMode` 枚举 + `resolveToolAccess` 裁决 + `store.updatePolicy` 类型 + 网关 `policy` 校验 + `mcp-reg mode` CLI + `listAuthorized` 投影 + 设置卡/连接器行两处下拉 + zh/en 词典。authz.test 新增 3 用例（默认放行、destructive 否决存活、review 例外）。
+
+### 修复
+- **权限面板过宽 / 长描述不截断**：工具行描述 span 已有 ellipsis 样式但缺 `min-width:0`——flex 子项默认 `min-width:auto` 拒绝收缩到内容以下，省略号永不触发，一条长 MCP 描述把整个面板撑宽。描述与工具名 span 均补 `minWidth:'0'`（工具名另加 maxWidth 220px），截断生效；完整文本经 `title` 浮窗气泡展示（原生 tooltip）。
+- **needs_review hint 按模式分支**：allow-all 下的审查提示不再误导去 `mcp-reg mode allowlist`，改为指明是 veto（destructive/显式审查）拦下、在权限面板清除。
+
+### 双清单与验证
+- `package.json` 与 `dsh-plugin.json` 同步至 0.3.4。typecheck 0 错；vitest 81/81（78 + allow-all 新 3 例）。
+
 ## 0.3.3 (2026-10-10) — 收窄支持面：仅 0.1.7 / 0.2.0 rc 线
 连接器管理的 Config 区依赖 `configForms`（0.1.7+ 原生可用）；≤0.1.5 无 configForms、只剩只读降级提示，体验不保真。本版把支持面从 `>=0.1.0-0 <0.3.0-0` 收窄到 **0.1.7-rc.1+ 与 0.2.0-rc 线**：`engines.dsh`（两处）改为 `>=0.1.7-rc.1 <0.1.8-0 || >=0.2.0-rc.1 <0.3.0-0`；`dsh-client-ui-slots` / `dsh-client-ui-settings` peer 枚举收窄到 `0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2`（peer 是宿主 evaluatePluginCompatibility 的 runtime 唯一门禁，故 ≤0.1.5 安装会被拒）。连接器管理网关面（走 webServer）本身跨线可用，但为体验一致不再宣称支持老线。typecheck 0；vitest 78/78。
 
