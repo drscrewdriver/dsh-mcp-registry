@@ -15,8 +15,8 @@ export const Config = z.object({
     .description('Global switch for the MCP registry and every bridged tool call. Off = mcp_bridge_call refuses and the status tool reports disabled.')
     .volatile(),
   defaultPermissionMode: z
-    .union(['review-all', 'allowlist'])
-    .description('Permission mode for connectors that do not set their own. review-all (safe default): every agent call returns needs_review until you grant tools. allowlist: only explicitly granted tools run silently (and read-only-trusted tools when trustReadOnlyHint is on).')
+    .union(['review-all', 'allowlist', 'allow-all'])
+    .description('Permission mode for connectors that do not set their own. review-all (safe default): every agent call returns needs_review until you grant tools. allowlist: only explicitly granted tools run silently (and read-only-trusted tools when trustReadOnlyHint is on). allow-all: every tool runs by default, except server-declared destructive tools and tools explicitly marked for review.')
     .volatile(),
   probeTimeoutMs: z
     .number()
