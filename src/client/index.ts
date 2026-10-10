@@ -629,7 +629,13 @@ function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body:
           h('option', { value: 'review' }, wt('permReview'))),
         h('button', { style: { ...BTN, fontSize: '11px', flexShrink: 0 }, onClick: function (): void { setTool(name, '') } }, '×')),
       info && info.description
-        ? h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '2px' }, title: info.description }, info.description)
+        // FIXED width, not width:auto: the host card container is shrink-to-fit,
+        // so an auto block child grows to its content's max-content width (the
+        // whole nowrap description) and re-stretches the dialog — overflow:
+        // hidden never fires because the box is as wide as the text. A hard
+        // 520px cap makes the panel's intrinsic width constant regardless of
+        // description length; maxWidth:96% keeps it sane in narrower shells.
+        ? h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', lineHeight: 1.4, width: '520px', maxWidth: '96%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '2px' }, title: info.description }, info.description)
         : null)
   }
 
