@@ -235,7 +235,7 @@ const INPUT = {
   borderRadius: '8px', padding: '3px 8px',
 } as const
 const CHIP = {
-  ...BTN, cursor: 'default', padding: '1px 8px', borderRadius: '999px', marginRight: '4px',
+  ...BTN, display: 'inline-block', cursor: 'default', padding: '1px 8px', borderRadius: '999px', marginRight: '4px',
 } as const
 const MONO = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '12px' } as const
 
@@ -255,9 +255,12 @@ function FieldRow(props: any): any {
   const scope = props.scope
   const h = React.createElement
   const rowStyle = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '6px 0' }
-  const label = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 } },
+  const label = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0, maxWidth: '100%' } },
     h('span', { style: { fontSize: '13px', color: 'var(--dsw-alias-label-primary, inherit)' } }, wt(f.lk)),
-    f.dk ? h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', lineHeight: 1.5 } }, wt(f.dk)) : null)
+    // Field descriptions clamp to 2 lines; the full text rides the hover bubble
+    // (title). Unclamped, the long defaultPermissionMode copy stretched the
+    // row and pushed the host settings dialog into horizontal scroll.
+    f.dk ? h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }, title: wt(f.dk) }, wt(f.dk)) : null)
 
   if (f.kind === 'bool') {
     return h('div', { style: rowStyle }, label,
@@ -600,13 +603,13 @@ function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body:
     const readOnly = info?.annotations?.readOnlyHint === true
     const value = local[name] ?? ''
     return h('div', { key: name, style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0', borderTop: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.15))', minWidth: '0' } },
-      h('span', { style: { ...MONO, fontSize: '12px', minWidth: '140px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: name }, name),
+      h('span', { style: { ...MONO, fontSize: '12px', display: 'inline-block', minWidth: '140px', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: name }, name),
       info && info.description
-        // flex children default to min-width:auto, which refuses to shrink below
-        // the text — the ellipsis never fires and one long MCP description
-        // stretches the whole panel. minWidth:0 is what lets it truncate;
-        // the title attr is the hover bubble carrying the full text.
-        ? h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', flex: '1 1 0', minWidth: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: info.description }, info.description)
+        // Hard maxWidth: the flex-chain min-width:0 trick alone did NOT hold —
+        // the settings grid's min-content sizing propagated the longest tool
+        // description all the way up and stretched the whole dialog. A fixed
+        // cap cannot be out-negotiated; the full text rides the title bubble.
+        ? h('span', { style: { fontSize: '11px', display: 'inline-block', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', flex: '0 1 auto', minWidth: '0', maxWidth: '320px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: info.description }, info.description)
         : h('span', { style: { flex: '1 1 0', minWidth: '0' } }),
       !info ? h('span', { style: { ...CHIP, fontSize: '10px', color: '#e6a23c' } }, wt('permOffline')) : null,
       readOnly ? h('span', { style: { ...CHIP, fontSize: '10px' } }, wt('permReadOnly')) : null,
@@ -625,7 +628,7 @@ function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body:
       h('button', { style: { ...BTN, fontSize: '11px' }, onClick: function (): void { setTool(name, '') } }, '×'))
   }
 
-  return h('div', { style: { border: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.3))', borderRadius: '8px', padding: '6px 8px', margin: '4px 0' } },
+  return h('div', { style: { border: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.3))', borderRadius: '8px', padding: '6px 8px', margin: '4px 0', minWidth: 0, maxWidth: '100%', overflow: 'hidden' } },
     h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
       h('span', { style: { fontSize: '12px', fontWeight: 600 } }, wt('permPanel')),
       h(SyncBadgeView, { badge: badge })),
@@ -685,10 +688,10 @@ function ConnectorCard(props: any): any {
     return act('policy', { id: row.id, trustReadOnlyHint: v }, row.id + ':trust')
   })
   const badge = probeBadge(row)
-  const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
+  const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 } },
     h('span', { style: { ...MONO, fontWeight: 600 } }, row.id),
     h('span', { style: { ...CHIP, fontSize: '11px' } }, row.transport),
-    h('span', { style: MONO }, row.target),
+    h('span', { style: { ...MONO, display: 'inline-block', minWidth: 0, maxWidth: '360px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: row.target }, row.target),
     row.pendingConfirmation ? h('span', { style: { ...CHIP, fontSize: '11px', color: '#e6a23c' } }, wt('unconfirmed')) : null,
     h('span', { style: { fontSize: '11px', color: badge.color } }, badge.text))
   const policyLine = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '3px 0' } },
@@ -719,8 +722,8 @@ function ConnectorCard(props: any): any {
       return keys.map(function (tool: string): any {
         const isAllow = map[tool] === 'allow'
         return h('span', {
-          key: tool, style: { ...CHIP, cursor: 'pointer', fontSize: '11px', color: isAllow ? 'inherit' : '#e6a23c' },
-          title: wt('grants') + ': ' + (isAllow ? wt('permAllow') : wt('permReview')),
+          key: tool, style: { ...CHIP, cursor: 'pointer', fontSize: '11px', color: isAllow ? 'inherit' : '#e6a23c', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+          title: wt('grants') + ': ' + (isAllow ? wt('permAllow') : wt('permReview')) + ' — ' + tool,
           onClick: function () { act('policy', { id: row.id, revoke: tool }, row.id + ':revoke:' + tool) },
         }, tool + (isAllow ? ' ×' : ' ⧗ ×'))
       })
@@ -756,7 +759,7 @@ function ConnectorCard(props: any): any {
         act('remove', { id: row.id }, row.id + ':remove')
       },
     }, confirmRemove ? wt('removeConfirm') : wt('removeBtn')))
-  return h('div', { style: { borderBottom: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.2))', padding: '6px 0' } },
+  return h('div', { style: { borderBottom: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.2))', padding: '6px 0', minWidth: 0, maxWidth: '100%', overflow: 'hidden' } },
     head, policyLine, actions,
     permOpen ? h(PermissionPanel, { key: row.id + ':perm', row: row, act: act, busy: busy }) : null)
 }
@@ -823,7 +826,11 @@ function SettingsCard(props: any): any {
   const writable = Boolean(snapshot) && snapshot.writable === true
   const effectiveValue = modeEcho ? { ...value, defaultPermissionMode: modeEcho.value } : value
 
-  return h('div', { style: { display: 'grid', gap: '8px' } },
+  // overflow:hidden + minWidth:0 cut the min-content propagation: a grid/flex
+  // child defaults to min-width:auto, so the longest tool description in the
+  // permission panel used to widen the grid column all the way up and push the
+  // host settings dialog into horizontal scroll.
+  return h('div', { style: { display: 'grid', gap: '8px', minWidth: 0, maxWidth: '100%', overflow: 'hidden' } },
     FIELD_GROUPS.map(function (group) {
       return h(GroupBlock, { key: group.gk, group: group, value: effectiveValue, writable: writable, scope: echoScope })
     }),
