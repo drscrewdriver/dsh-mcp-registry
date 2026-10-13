@@ -28,25 +28,31 @@ agent 侧：`mcp_registry_status` → `mcp_bridge_list_tools` → `mcp_bridge_ca
 
 ```
 npm run typecheck   # strict TS，0 错误
-npm run test        # vitest，67 用例
+npm run test        # vitest，81 用例
 npm run build       # tsdown → lib/index.js（dsh-tools external）
 ```
 
-- 目标宿主：DSH 0.2.0 线（latest = 0.2.2）；DSH 0.1.7 线用 `dsh-mcp-registry@dsh-0.1.7`。
+- 目标宿主：DSH 0.2.0 线（`latest` = 0.3.4）；DSH 0.1.7 线用 `dsh-mcp-registry@dsh-0.1.7`（= 0.3.3）。
+  **0.1.6 及以下不再支持也不再测**（作者决定，2026-10-13）：`latest` 自 0.2.x 时代的最宽范围
+  `>=0.1.0-0 <0.3.0-0` 收窄为 `>=0.1.7-rc.1 <0.1.8-0 || >=0.2.0-rc.1 <0.3.0-0`，老线安装会被
+  宿主按 `engines.dsh` 拒装——这是有意的，不是回归。历史 tag（`dsh-0.1.1` / `dsh-0.1.2` /
+  `dsh-0.1.5`）仍指旧版，仅供取用，不再验证。
 - 安装：profile patch 加一行 `- insert: [{id: dsh-mcp-registry, name: "dsh-mcp-registry"}]`（或直接用本仓库 `cordis.patch.yml`）。
 - 插件 inject `['tools','commands']`：宿主提供 commands 服务即全功能（web/tui/headless 模板均提供）；`webServer` 缺席只影响状态路由，tools 不受影响。
 
 ## 版本 ↔ DSH 宿主线
 
-版本号按 DSH 宿主发布线预留进度；**`latest` = 0.2.2（当前主推线，已在 DSH 0.2.0-rc.2 宿主上真机启动验证）**：
+版本号按 DSH 宿主发布线预留进度；**`latest` = 0.3.4**：
 
 | npm 版本 | dist-tag | 目标 DSH 宿主 | 状态 |
 |---|---|---|---|
-| 0.1.1 / 0.1.2 / 0.1.5 | `dsh-0.1.1` 等 | 0.1.1 ~ 0.1.6 各线 | 预留占位（deprecated） |
-| 0.1.7 | `dsh-0.1.7` | `>=0.1.7-rc.1 <0.1.8-0` | 旧宿主线（peer 仅容 dsh-tools 0.1.7） |
+| 0.1.1 / 0.1.2 / 0.1.5 | `dsh-0.1.1` 等 | 0.1.1 ~ 0.1.6 各线 | 预留占位（deprecated，不测） |
+| 0.1.7 | — | `>=0.1.7-rc.1 <0.1.8-0` | 旧宿主线（peer 仅容 dsh-tools 0.1.7） |
 | 0.2.0 | — | `>=0.2.0-0` | 已弃用：peer 未放行 dsh-tools 0.2.x，被 0.2.0 宿主拒装 |
 | 0.2.1 | — | `>=0.2.0-0` | 已弃用：未声明 commands inject，0.2.0 宿主挂载报错 |
-| **0.2.2** | `dsh-0.2.0`（= `latest`） | `>=0.2.0-0` | **当前主推线**（peer 兼容 dsh-tools 0.1.7+0.2.x，inject 含 commands） |
+| 0.2.2 | — | `>=0.2.0-0` | 曾为 latest；已由 0.3.x 接替 |
+| 0.3.3 | `dsh-0.1.7` | `>=0.1.7-rc.1 <0.1.8-0 \|\| >=0.2.0-rc.1 <0.3.0-0` | 0.1.7 线定版 |
+| **0.3.4** | `dsh-0.2.0`（= `latest`） | 同上 | **当前主推线**（MCP 注册表面与连接器管理修复） |
 
 ## 设计边界（与 dsh-mcp-connector 同一条线）
 

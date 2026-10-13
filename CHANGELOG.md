@@ -12,6 +12,14 @@
 ### 双清单与验证
 - `package.json` 与 `dsh-plugin.json` 同步至 0.3.4。typecheck 0 错；vitest 81/81（78 + allow-all 新 3 例）。
 
+### 发布（2026-10-13）
+- 0.3.4 上架 npm（`npm publish --registry=https://registry.npmjs.org --tag dsh-0.2.0`），回执 shasum
+  `50584a54d74e5ceab8f453ced2ae9c7031bfe9a6` 与 registry 版本级文档逐位一致。
+- **`latest` 从 0.2.14 移到 0.3.4**（`npm dist-tag add`）。这是把 0.3.3 已经写进 `engines.dsh` 的收窄
+  贯彻到默认解析路径：不带 tag 安装时，≤0.1.6 会被宿主按 `engines.dsh` 拒装——作者确认老线不再支持也不再测。
+  历史 tag `dsh-0.1.1` / `dsh-0.1.2` / `dsh-0.1.5` 仍指旧版，仅供取用。
+- README 的「版本 ↔ 宿主线」表同步（它之前还写着 `latest = 0.2.2`，且用例数 67 已陈，实为 81）。
+
 ## 0.3.3 (2026-10-10) — 收窄支持面：仅 0.1.7 / 0.2.0 rc 线
 连接器管理的 Config 区依赖 `configForms`（0.1.7+ 原生可用）；≤0.1.5 无 configForms、只剩只读降级提示，体验不保真。本版把支持面从 `>=0.1.0-0 <0.3.0-0` 收窄到 **0.1.7-rc.1+ 与 0.2.0-rc 线**：`engines.dsh`（两处）改为 `>=0.1.7-rc.1 <0.1.8-0 || >=0.2.0-rc.1 <0.3.0-0`；`dsh-client-ui-slots` / `dsh-client-ui-settings` peer 枚举收窄到 `0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2`（peer 是宿主 evaluatePluginCompatibility 的 runtime 唯一门禁，故 ≤0.1.5 安装会被拒）。连接器管理网关面（走 webServer）本身跨线可用，但为体验一致不再宣称支持老线。typecheck 0；vitest 78/78。
 
