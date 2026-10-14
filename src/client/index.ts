@@ -939,8 +939,14 @@ function apply(ctx: any): void {
 const FAMILY_SECTION_ID = 'dsh-family'
 /** 家族子席位 key（与 thinking-levels 的声明严格一致）。 */
 const FAMILY_CHILD_KEY = 'dsh-family.tab'
-/** 接管宽限期：guard 2000ms、steward 2600ms 先试，本插件最后兜底。 */
-const FAMILY_HOST_GRACE_MS = 3200
+/** 家族容器接管分级——唯一真源 `mine-dsh-plugins/_tools/family-rank.mjs`（离线实测
+ * GitHub star + npm 周下载量加权）。延迟 = BASE + RANK * STEP。
+ * 旧注释里“guard 2000ms、steward 2600ms”与实际值不符（曾为 500/2600），现已不再各自拍数。 */
+const FAMILY_CLAIM_RANK = 5
+const FAMILY_CLAIM_BASE_MS = 200
+const FAMILY_CLAIM_STEP_MS = 900
+/** 接管宽限期（由分级派生）：排在所有高权重候选之后。 */
+const FAMILY_HOST_GRACE_MS = FAMILY_CLAIM_BASE_MS + FAMILY_CLAIM_RANK * FAMILY_CLAIM_STEP_MS
 
 interface FamilyTabEntry { id: string; order: number; label: string }
 
