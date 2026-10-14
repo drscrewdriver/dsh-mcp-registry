@@ -35,7 +35,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint src tests",
     "test": "vitest run",
-    "build": "tsdown -c tsdown.config.ts"
+    "build": "tsdown -c tsdown.config.ts",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.4"
