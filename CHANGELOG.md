@@ -1,5 +1,20 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.3.5 (2026-10-15) — 原生工具懒加载（第三方 LM 连接器的 O(1) 工具 token）
+
+### 新增
+- **`lazyNativeTools` 懒加载模式（可选，缺省关）**：在 `system-prompt/assemble` 瀑布层（`await next()` 之后）把非核心原生工具的完整 schema 折叠出常驻 prompt，只保留 `tool_discover`（紧凑目录，name + 截断描述 + active 标记）与 `tool_activate`（按名展开，下一轮以完整 schema 回到 prompt）两个常量元工具。目标：让**无法携带 `mid-conversation-tool-changes` 块的第三方 LM 连接器**也吃到近恒定工具 token（原生 `deferLoading`/`toolUpdate` 机制只在官方 DeepSeek Messages 路由生效，`llm-pi-ai` 会把 `deferLoading` 剥掉、全量透传）。
+- **责任边界与 fail-open**：只折叠原生工具——`mcp__*`（bridge 已拥有该面）、注册表自有 4 工具（status/list/call + 两个元工具）、`lazyKeepAlways` 列出的核心集都不动（缺省空列表，即可选保留集为空）；关闭或非数组 tools 载荷直接透传，最坏是现状。工具仍在 `ctx.tools` 注册，执行/TUI/restrict 掩码不受影响，变的只是 prompt 载荷。
+- **作用域隔离**：激活状态按 agent 作用域键（`context.scope`/`exec.agent` 共享的 `agent.id`）隔离，纯内存、不落盘、重启回冷；一个 agent 激活不外泄给另一个（对齐 `dsh-mcp-lazy` 的会话隔离）。`enabled: false` 总闸折叠回全量。
+- **Config 新字段**（均 volatile，热生效）：`lazyNativeTools`（bool，缺省 false）、`lazyKeepAlways`（string[]，缺省**空列表** `[]`——开启懒加载即隐藏全部非注册表原生工具，贴合「先注入空列表、后续按需注入」；想免发现回合可自行列 `bash/read/write/edit/glob/grep`）、`lazyDescriptionLimit`（number，缺省 160）；TUI 设置面板加 `lazyNativeTools`/`lazyDescriptionLimit` 两行（数组型 `lazyKeepAlways` 无对应 TUI kind，走配置/YAML）。
+- **发现引导 system prompt 段**（`buildDiscoveryGuide`）：注册表启用时常驻一段，**直接把当前已注册启用的 MCP 连接器列表（id + 显示名，每次组装从 store 实时重算，不泄 url/token）摊给模型**——模型无需先调 `mcp_registry_status` 就知道有哪些 MCP（即 skill-catalog 的「索引常驻、内容懒加载」，对象换成 MCP：列表常驻、每个连接器的工具 schema 懒到 `mcp_bridge_list_tools`）；懒加载开启时另追加「非核心原生工具已隐藏，用 `tool_discover`/`tool_activate`」。无启用连接器时明说「No MCP connectors …」并保留机制叙述。空文本（注册表关）不产出。挂在 `MCP_SERVERS` 锚点（带 3100 兜底），`inject` 因此含 `systemPrompt`。
+- `inject` 加 `systemPrompt`（保证懒加载的 assemble 监听器在任一会话组装前挂上）。
+- **懒加载两档开关 `lazyEagerIndex`（bool，volatile，缺省 true=Mode B）**：切换隐藏原生工具的披露形态——开时引导段直接摊开 `名字 (一行摘要)` 名单（skill-catalog 式，免 `tool_discover` 直接 `tool_activate`，常驻 O(n·一行)）；关时名单不预摊、需先 `tool_discover`（常驻 O(1)）。两档工具 schema 仍折叠隐藏，都要 activate 才可调。名单新增 `NativeToolLazyLoader.nativeIndex(scope, visible)`，数据源每次组装从 `ctx.tools.schemas(agent)` 实读（`ToolRegistrar` 加可选 `schemas?`），无首轮预热空窗；宿主无 `schemas` 时回退 `lazy.discover(scope)`。`buildDiscoveryGuide` 的 `GuideInput` 加 `nativeIndex`，懒加载段分 Mode B/A 两支。TUI 面板加 `lazyEagerIndex` 行。仅影响原生工具，MCP 行为不变。
+
+### 验证
+- 新增 `tests/lazy.test.ts` 24 例（scopeKeyOf 兜底、disabled 透传、折叠保留 core/own/mcp、作用域隔离、already/unknown 拒绝、discover 截断与 active 标记、forget 清理、buildDiscoveryGuide 六态含 Mode B/A、nativeIndex 过滤/激活后移除/首轮无预热）。typecheck 0 错；vitest 105/105；tsdown build 通过。`tests/surface-http.test.ts` 两处 lint 报错（`any`/`prefer-const`）为先前遗留、与本改动无关。
+- 双清单 `package.json` / `dsh-plugin.json` 同步至 **0.3.5**（去 `-local` 后缀，正规补丁版）。
+
 ## 0.3.4 (2026-10-10) — 新增「默认放行」权限模式；权限面板宽度修复
 
 ### 新增

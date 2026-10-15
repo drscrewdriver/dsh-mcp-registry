@@ -13,6 +13,7 @@ import { publicView, type ConnectorRecord } from '../core/model.ts'
 import type { RegistryStore } from '../core/store.ts'
 import type { McpBridge } from '../bridge.ts'
 import type { PermissionMode } from '../core/model.ts'
+import { scopeKeyOf, type LazyOptions, type NativeToolLazyLoader } from '../lazy.ts'
 
 /**
  * defineTool's option type recurses through schemastery's `InferObject` and
@@ -115,6 +116,63 @@ export function createBridgeTool(bridge: McpBridge, getDefaultMode: () => Permis
         return { ok: false, status: outcome.status, reason: outcome.reason, hint: outcome.hint }
       }
       return { ok: outcome.ok, status: outcome.status, result: outcome.result }
+    },
+  } as DefineToolOpts)
+}
+
+/** The caller's agent scope key, read defensively from the tool run context. */
+function execScope(exec: unknown): string {
+  const agent = (exec as { agent?: unknown } | undefined)?.agent
+  return scopeKeyOf(agent)
+}
+
+/**
+ * tool_discover — list the native tools currently folded out of the prompt for
+ * this agent, with truncated descriptions. Read-only; a no-op answer when lazy
+ * loading is disabled so the tool is honest about the switch state.
+ */
+export function createDiscoverTool(lazy: NativeToolLazyLoader, opts: LazyOptions): DefineToolOpts {
+  return defineTool({
+    name: 'tool_discover',
+    description:
+      'List native tools hidden from the prompt by lazy loading, with short descriptions. ' +
+      'Call tool_activate with a name to declare a listed tool in full on your next step. ' +
+      'Core tools (shell, file read/write, search) and MCP tools are never hidden by this.',
+    parameters: {},
+    output: { schema: LOOSE_OBJECT_SCHEMA, render: renderAsJson },
+    execute: async (_args: Record<string, unknown>, exec: unknown) => {
+      if (!opts.isEnabled()) {
+        return { ok: true, enabled: false, note: 'Native tool lazy loading is off; every tool is already declared.', tools: [] }
+      }
+      return { ok: true, enabled: true, tools: lazy.discover(execScope(exec)) }
+    },
+  } as DefineToolOpts)
+}
+
+/**
+ * tool_activate — reveal one folded tool for this agent by returning its full
+ * schema and marking it active so the next prompt assembly declares it.
+ */
+export function createActivateTool(lazy: NativeToolLazyLoader, opts: LazyOptions): DefineToolOpts {
+  return defineTool({
+    name: 'tool_activate',
+    description:
+      'Activate a hidden native tool so it is declared in full to you from your next step. ' +
+      'Use tool_discover to find names. Activating affects only this agent and the current process.',
+    parameters: {
+      tool: { type: 'string', description: 'Tool name from tool_discover.', required: true },
+    },
+    output: { schema: LOOSE_OBJECT_SCHEMA, render: renderAsJson },
+    execute: async (args: { tool: string }, exec: unknown) => {
+      if (!opts.isEnabled()) {
+        return { ok: false, enabled: false, note: 'Native tool lazy loading is off; every tool is already declared — nothing to activate.' }
+      }
+      const scope = execScope(exec)
+      const outcome = lazy.activate(scope, String(args.tool ?? ''))
+      if (outcome.status === 'unknown') {
+        return { ok: false, status: outcome.status, note: `"${String(args.tool ?? '')}" is not a hidden native tool (check tool_discover; MCP tools use mcp_bridge_call, core tools are always available).` }
+      }
+      return { ok: true, status: outcome.status, tool: outcome.schema?.name, description: outcome.schema?.description }
     },
   } as DefineToolOpts)
 }

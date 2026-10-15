@@ -9,6 +9,8 @@ DSH 插件：**MCP 连接器受治理注册表**。借鉴 [dsh-mcp-connector](ht
 - **诚实桥接**：agent 用 `mcp_bridge_call` 调 MCP 工具；review 判定返回结构化 `needs_review`（含 grant 指引），**不执行、不伪装**。
 - **fail-loud 导入**：`mcpServers` JSON 里 `args` 是字符串、`command` 带空格无 args、`__proto__` 键 → 一律带 id 报错拒绝（openhanako 静默丢 args bug 的反向验收）；导入落地默认 disabled + 待人工确认。
 - **全边界脱敏**：agent 只读工具/命令/导出/HTTP 状态一律投影（origin / 命令基名），token 与 env 明文值不出注册表。
+- **原生工具懒加载（可选）**：`lazyNativeTools` 开启后，在 `system-prompt/assemble` 瀑布层把非核心原生工具（shell/文件/搜索等）的完整 schema 折叠出常驻 prompt，只留 `tool_discover`（紧凑目录）+ `tool_activate`（按需展开）两个常量元工具——让**无法做 mid-conversation 工具变更的第三方 LM 连接器**也吃到近恒定的工具 token。工具仍在 `ctx.tools`（执行/TUI/restrict 不受影响），变的只是 prompt 载荷；MCP 工具（`mcp__*`）不由它折叠（走 bridge）。激活按 agent 作用域隔离、纯内存、重启回冷。缺省关；`lazyKeepAlways` 缺省为空（开启即隐藏全部非注册表原生工具，可按需列入核心集）。另会注入一段发现引导 system prompt（常驻告知 MCP bridge 链路，懒加载开启时追加 `tool_discover`/`tool_activate`）——因为 MCP 工具从不逐个声明，没这段叙述模型无从得知有 MCP 可试。
+- **懒加载两档（`lazyEagerIndex`，缺省 true）**：仅影响原生工具的披露形态。开（Mode B，skill-catalog 式）：引导段直接摊开隐藏原生工具的 `名字 (一行摘要)` 名单，模型免 `tool_discover` 直接 `tool_activate`，常驻成本 O(n·一行)；关（Mode A）：名单不预摊，模型先 `tool_discover` 再 `tool_activate`，常驻 O(1)。两档工具 schema 都仍被折叠隐藏，**都要 `tool_activate` 才变成可调用**。名单数据源每次组装从 `ctx.tools.schemas(agent)` 实读（无首轮空窗），宿主无 `schemas` 时降级回退折叠缓存。
 
 ## 快速上手
 
@@ -23,6 +25,8 @@ mcp-reg call <id> <tool> '{"k":"v"}'   # 人工调用（即视同批准）
 ```
 
 agent 侧：`mcp_registry_status` → `mcp_bridge_list_tools` → `mcp_bridge_call`。
+
+懒加载（开启 `lazyNativeTools` 后）：agent 侧 `tool_discover` 查看被折叠的非核心原生工具 → `tool_activate` 按名展开，下一轮该工具以完整 schema 回到 prompt。缺省 `lazyKeepAlways` 为空，连 bash/read 也需先 discover+activate；想免这一回合就在配置里列入核心工具名。模型由一段常驻的发现引导 system prompt 告知“MCP 走 bridge、隐藏原生工具走 discover/activate”。
 
 ## 工程
 

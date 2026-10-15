@@ -20,6 +20,8 @@ export type ToolExecute = (args: Record<string, unknown>, exec: ToolExec) => Pro
 
 export interface ToolRegistrar {
   register(tool: unknown): unknown
+  /** Live visible tool schemas for an agent scope (optional; used by the eager native-tool index). */
+  schemas?(agent?: unknown): AssemblyToolSchema[]
 }
 
 export interface LoggerLike {
@@ -62,6 +64,40 @@ export interface McpRegistryContext {
   provide?(name: string, surface: unknown): unknown
   effect?(fn: () => unknown, label?: string): unknown
   on?(event: string, fn: (...args: unknown[]) => unknown): () => void
+  /** Prompt-section registry, used to surface the MCP/lazy discovery guide. */
+  systemPrompt?: {
+    section(section: { name: string; order: number; text: string | ((context: AssembleContextLike) => string) }): unknown
+    getSectionOrder?(name: string): number
+  }
+}
+
+/**
+ * Model-facing tool schema as it appears in a prompt assembly. Structural
+ * mirror of `@deepseek-ai/dsh-llm`'s ToolSchema — the assembly carries only
+ * these four fields (no execute / output), which is exactly the fold surface.
+ */
+export interface AssemblyToolSchema {
+  name: string
+  description: string
+  parameters: Record<string, unknown>
+  deferLoading?: true
+}
+
+/** The slice of a prompt assembly this plugin observes and rewrites. */
+export interface PromptAssemblyLike {
+  tools: AssemblyToolSchema[]
+  sections?: unknown[]
+  contexts?: unknown[]
+  variables?: Record<string, string | undefined>
+}
+
+/** Per-assembly context handed to the system-prompt/assemble waterfall. */
+export interface AssembleContextLike {
+  /** Scope carrier — the agent object when the assembly is agent-scoped. */
+  scope?: unknown
+  /** The agent the assembly is for, when present. */
+  agent?: { id?: unknown }
+  signal?: AbortSignal
 }
 
 /** Raw composition-layer config (volatile fields arrive as live references). */
@@ -69,5 +105,9 @@ export interface RawConfig {
   enabled?: unknown
   defaultPermissionMode?: unknown
   probeTimeoutMs?: unknown
+  lazyNativeTools?: unknown
+  lazyEagerIndex?: unknown
+  lazyKeepAlways?: unknown
+  lazyDescriptionLimit?: unknown
   [key: string]: unknown
 }
