@@ -1,6 +1,6 @@
 {
   "name": "dsh-mcp-registry",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "dsh-mcp-registry: DSH plugin — a governed registry for MCP connectors (stdio / streamable-http). Multi-level fail-closed authorization (global switch → per-connector permission mode → per-tool grants → live server-annotation evidence), mcpServers JSON import that rejects malformed args loudly instead of silently dropping them, honest probe status with failure codes, credential redaction on every output boundary, and an agent bridge tool whose review-all default refuses rather than fakes approval. Learnings distilled from dsh-mcp-connector, dsh-mcp-panel and openhanako's core/mcp.",
   "type": "module",
   "repository": {
@@ -46,10 +46,10 @@
     "@deepseek-ai/schemastery": "^3.18.4"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-tools": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
-    "react": "^18.2.0",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
     "@deepseek-ai/dsh-client-ui-slots": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
-    "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3"
+    "@deepseek-ai/dsh-tools": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3",
+    "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-tools": {
@@ -66,7 +66,17 @@
     }
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-tools": ">=0.1.7-rc.1 <0.1.8-0",
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-agent": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-ptc-runtime": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-sandbox": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-sandbox-policy": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-scope": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-session": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-system-prompt": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-user-approval": "^0.2.1-rc.3",
+    "@deepseek-ai/dsh-working-directory": "^0.2.1-rc.3",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.20.1",
     "eslint": "^10.12.0",
