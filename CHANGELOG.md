@@ -1,5 +1,18 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.3.10 (2026-10-27)
+
+### 修复（issue #1，报告者 shaomou-pek）
+
+- **`/mcp-reg` 任何子命令在真宿主报 `command "mcp-reg" returned unknown result kind "text"`**：宿主 `packages/interaction/commands` 的 `normalizeResult` 只接受 `success` / `error`（该契约自 0.1.7-rc.2 至 0.2.1-rc.3 逐条一致，非宿主回归），而 `src/surface/command.ts` 成功路径一直返回 `kind: 'text'`——自 0.3.0 引入该命令面起，它**从未在真宿主上成功执行过一次**（副作用先落地、返回值这步才抛错，使用者会误判失败而重复执行）。现改为判别联合 `{kind:'success';text?} | {kind:'error';text}`，成功路径返回 `success`；并新增 `failureText()` 保证 `error.text` trim 后非空（宿主对空文案会二次抛错）。
+- **`mcp-reg probe` 对 stdio 连接器恒显示 `unknown server (protocol ?)`**：`src/client/stdio-client.ts` 的 `initialize()` 把握手结果写进 `this.info` 却**没有 return**（返回 `Promise<void>`），而 `bridge.doProbe()` 读的是返回值。现与 `http-client` 对齐返回 `this.info`；`SessionLike.initialize` 同时去掉 `| void`，使“吞掉身份”的实现改为在 `tsc` 阶段报错而非运行时静默。
+
+### 测试策略变更（防同类漂移复发）
+
+- 上述两处缺陷都**不是**偶发：`tests/command.test.ts` 手搓 `register` mock 从不经过宿主校验，且 mock 类型把 `kind` 写成宽 `string`；`tests/bridge.test.ts` 的假会话默认返回 `{serverName:'fake'}`，比真实现（返回 void）更“正确”。两层假绿让缺陷活了 8 个版本。
+- 新增 `hostNormalize()`——宿主 `normalizeResult` 的等价复刻（三条 throw 文案逐字对齐），所有子命令（含异步 `probe` 分支）结果均须过它；新增 `tests/stdio-initialize.test.ts`，用 `node -e` 内联假 MCP server 起**真子进程**，经真实 `McpStdioSession` 与 `McpBridge.probe()` 断言身份回显。反向验证：把 `success` 改回 `text` 时新用例必红。
+- typecheck 0 错；vitest **110/110**（新增 5 例）；tsdown build 产物 `kind:"text"` 计数 0。`eslint` 仍有 3 处**存量**报错（`src/index.ts:168`、`tests/surface-http.test.ts:30/52`，HEAD 上同样红，与本改动无关）。
+
 0.3.8: host enumeration addendum for DSH 0.2.1-rc.3 (declaration-only bump; contract plane zero diff).
 
 ## 0.3.7 (2026-10-18)

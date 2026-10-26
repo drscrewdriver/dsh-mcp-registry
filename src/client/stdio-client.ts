@@ -16,6 +16,7 @@
  */
 import { spawn as nodeSpawn } from 'node:child_process'
 import { makeNotification, makeRequest, isRpcResponse, rpcErrorMessage } from './jsonrpc.ts'
+import type { InitializeInfo } from './http-client.ts'
 import { McpTransportError } from './transport-error.ts'
 
 export interface StdioProcessLike {
@@ -172,7 +173,7 @@ export class McpStdioSession {
   private stderrTail = ''
   private pending = new Map<number, Pending>()
   private exited: string | null = null
-  info: { serverName?: string; serverVersion?: string; protocolVersion?: string } = {}
+  info: InitializeInfo = {}
 
   constructor(record: { command: string; args: readonly string[] }, opts: StdioSessionOptions = {}) {
     this.record = record
@@ -243,7 +244,7 @@ export class McpStdioSession {
     }
   }
 
-  async initialize(timeoutMs: number): Promise<void> {
+  async initialize(timeoutMs: number): Promise<InitializeInfo> {
     const result = await this.request('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: {},
@@ -260,6 +261,10 @@ export class McpStdioSession {
       }
     }
     this.sendNotification(makeNotification('notifications/initialized'))
+    // Same shape as http-client: the handshake result is the session's identity,
+    // so callers (bridge.doProbe) can report serverName/serverVersion instead
+    // of "unknown server".
+    return this.info
   }
 
   async request(method: string, params?: Record<string, unknown>, timeoutMs = 60_000): Promise<unknown> {

@@ -35,7 +35,14 @@ function setup(records: Array<[string, Record<string, unknown>]>, sessionFactory
   return { store, bridge }
 }
 
-/** Scripted session: replays request results by method; initialize overridable. */
+/**
+ * Scripted session: replays request results by method; initialize overridable.
+ *
+ * Keep this stub no more permissive than a real session: the real
+ * `McpStdioSession.initialize()` used to return void, and because this fake
+ * returned `{ serverName: 'fake' }` the missing identity stayed green for
+ * eight releases. A stub that "works harder" than production hides the bug.
+ */
 function fakeSession(script: Partial<Record<string, (params: unknown) => unknown>>): SessionLike {
   return {
     request: async (method) => {

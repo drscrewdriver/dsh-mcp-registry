@@ -28,7 +28,10 @@ export interface BridgeConfig {
 
 export interface SessionLike {
   request(method: string, params?: Record<string, unknown>, timeoutMs?: number): Promise<unknown>
-  initialize(timeoutMs: number): Promise<InitializeInfo | void>
+  /** Returns the handshake identity. Deliberately NOT `| void`: a session that
+   *  swallows the result makes `probe` report "unknown server" silently, so the
+   *  omission must fail at compile time. */
+  initialize(timeoutMs: number): Promise<InitializeInfo>
   close(): void
 }
 
@@ -149,9 +152,9 @@ export class McpBridge {
         ok: true,
         latencyMs: Date.now() - started,
         at: Date.now(),
-        protocolVersion: info?.protocolVersion,
-        serverName: info?.serverName,
-        serverVersion: info?.serverVersion,
+        protocolVersion: info.protocolVersion,
+        serverName: info.serverName,
+        serverVersion: info.serverVersion,
       }
     } catch (e) {
       const err = e instanceof McpTransportError ? e : new McpTransportError('probe-failed', (e as Error).message)

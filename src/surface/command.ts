@@ -6,9 +6,11 @@
  * host without the commands service degrades to the agent tools only — the
  * same pattern dsh-preset-manager and dsh-session-guard use.
  *
- * Known boundary: `probe` and `call` return a Promise from the handler. Hosts
- * that await command handlers render the outcome; a strictly-sync host would
- * render nothing for those two subcommands (documented in HANDOVER.md).
+ * Return-value contract: the host validates every handler result through
+ * `normalizeResult` (packages/interaction/commands), which accepts ONLY
+ * `success` / `error` and throws `unknown result kind` for anything else.
+ * `probe` and `call` return a Promise; the host awaits it and then runs the
+ * same check, so the async branch must satisfy the contract too.
  */
 import { readFileSync } from 'node:fs'
 import { publicView, redactTarget, type ConnectorRecord, type PermissionMode } from '../core/model.ts'
@@ -42,10 +44,14 @@ const HELP = `mcp-reg — MCP connector registry console
   mcp-reg call <id> <tool> [json]    call a tool as the USER (counts as approval)
   mcp-reg help                       this text`
 
-interface CommandResult {
-  kind: 'text' | 'error'
-  text: string
-}
+/**
+ * Mirrors the host's own discriminated union: `success` may omit text, `error`
+ * must carry non-empty text. `normalizeResult` rejects every other `kind` at
+ * the registry boundary, so this is the only legal shape to return.
+ */
+type CommandResult =
+  | { kind: 'success'; text?: string }
+  | { kind: 'error'; text: string }
 
 export function registerMcpRegCommand(ctx: { commands?: { register(cmd: unknown): unknown } }, deps: McpRegDeps): unknown {
   if (typeof ctx.commands?.register !== 'function') return undefined
@@ -55,18 +61,18 @@ export function registerMcpRegCommand(ctx: { commands?: { register(cmd: unknown)
       'MCP connector registry console: list/probe/import/export connectors, set permission mode, grant tools, '
       + 'and call tools as the user. Run `mcp-reg help` for subcommands.',
     input: { hint: '<list|probe|import|export|confirm|enable|disable|mode|grant|revoke|trust|call|help> ...' },
-    handler: (invocation: { rawInput?: unknown }) => {
+    handler: (invocation: { rawInput?: unknown }): CommandResult | Promise<CommandResult> => {
       const text = String(invocation?.rawInput ?? '').trim()
       let outcome: string | Promise<string>
       try {
         outcome = dispatch(text, deps)
       } catch (e) {
-        return { kind: 'error', text: `mcp-reg failed: ${errorMessage(e)}` }
+        return { kind: 'error', text: failureText(e) }
       }
-      if (!(outcome instanceof Promise)) return { kind: 'text', text: outcome }
-      return outcome.then(
-        (text) => ({ kind: 'text', text }) satisfies CommandResult,
-        (e: unknown) => ({ kind: 'error', text: `mcp-reg failed: ${errorMessage(e)}` }) satisfies CommandResult,
+      if (!(outcome instanceof Promise)) return { kind: 'success', text: outcome }
+      return Promise.resolve(outcome).then(
+        (value) => ({ kind: 'success', text: value }) satisfies CommandResult,
+        (e: unknown) => ({ kind: 'error', text: failureText(e) }) satisfies CommandResult,
       )
     },
   })
@@ -76,6 +82,15 @@ function errorMessage(e: unknown): string {
   if (e instanceof McpImportError) return `import[${e.connectorId}] ${e.code}: ${e.message}`
   if (e instanceof UnknownConnectorError) return e.message
   return (e as Error).message
+}
+
+/**
+ * The host rejects an `error` result whose text is empty after trim, so an
+ * exception carrying a blank message must still yield a non-empty line.
+ */
+function failureText(e: unknown): string {
+  const detail = errorMessage(e).trim()
+  return detail ? `mcp-reg failed: ${detail}` : 'mcp-reg failed: unknown error (empty message)'
 }
 
 function dispatch(input: string, deps: McpRegDeps): string | Promise<string> {
