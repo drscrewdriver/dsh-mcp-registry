@@ -165,7 +165,9 @@ export function apply(ctx: McpRegistryContext, config: RawConfig = {}): void {
         const lazyEnabled = lazyOpts.isEnabled()
         if (lazyEnabled && lazyOpts.eagerIndex()) {
           const scope = scopeKeyOf(ctxLike.agent ?? ctxLike.scope)
-          let visible: AssemblyToolSchema[] = []
+          // No initializer: both arms below assign, and a pre-seeded `[]` is
+          // dead on the success path (eslint no-useless-assignment).
+          let visible: AssemblyToolSchema[]
           try { visible = ctx.tools.schemas?.(ctxLike.agent) ?? [] } catch { visible = [] }
           nativeIndex = visible.length > 0
             ? lazy.nativeIndex(scope, visible)

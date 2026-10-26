@@ -26,8 +26,23 @@ function memIo() {
 
 type Handler = (req: unknown, res: unknown) => void | Promise<void>
 
+/**
+ * Shape of the gateway envelopes these tests walk. Declared explicitly instead
+ * of `any` so a renamed field fails at typecheck; the properties are required
+ * because each test asserts them on the branch it just exercised.
+ */
+interface GatewayBody {
+  ok: boolean
+  error: { code: string; message?: string }
+  value: {
+    connector: { enabled: boolean; pendingConfirmation: boolean }
+    connectors: Array<{ id: string; toolPermissions?: Record<string, string> }>
+    removed: string
+  }
+}
+
 /** Fake webServer ctx: captures the prefix handler for direct invocation. */
-function fakeGateway(store: RegistryStore, bridge: McpBridge): { handle(method: string, body: unknown): Promise<{ status: number; body: any }> } {
+function fakeGateway(store: RegistryStore, bridge: McpBridge): { handle(method: string, body: unknown): Promise<{ status: number; body: GatewayBody }> } {
   let handler: Handler | undefined
   const ctx = {
     get: () => ({
@@ -49,7 +64,7 @@ function fakeGateway(store: RegistryStore, bridge: McpBridge): { handle(method: 
           return { next: () => Promise.resolve(i < chunks.length ? { value: chunks[i++], done: false } : { value: undefined, done: true }) }
         },
       }
-      let out = { status: 0, text: '' }
+      const out = { status: 0, text: '' }
       const res = {
         writeHead(status: number) { out.status = status },
         end(bodyText?: string) { out.text = bodyText ?? '' },
@@ -87,8 +102,9 @@ describe('mcp-registry gateway (0.3.0 methods)', () => {
     store.confirm('srv-a')
     await gw.handle('policy', { id: 'srv-a', toolPermissions: { read_stuff: 'allow', write_stuff: 'review' } })
     const status = await gw.handle('status', {})
-    const row = status.body.value.connectors.find((c: { id: string }) => c.id === 'srv-a')
-    expect(row.toolPermissions).toEqual({ read_stuff: 'allow', write_stuff: 'review' })
+    const rows = status.body.value.connectors
+    const row = rows.find((c) => c.id === 'srv-a')
+    expect(row?.toolPermissions).toEqual({ read_stuff: 'allow', write_stuff: 'review' })
   })
 
   it('policy with a whole toolPermissions map persists; duplicate add rejects with id-conflict', async () => {

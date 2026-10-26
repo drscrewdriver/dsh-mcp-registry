@@ -1,5 +1,14 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.3.12 (2026-10-27)
+
+> 无行为变更。在 0.3.11 基础上把质量门禁从“红但存量”拉回真绿，使发布态与仓库态一致。
+
+- `src/index.ts`：去掉 `nativeIndex` 分支里 `visible` 的冗余初始值（`no-useless-assignment`）；两层 `try/catch` 已覆盖赋值，语义不变。
+- `tests/surface-http.test.ts`：假网关的响应体从 `body: any` 改为显式 `GatewayBody` 接口（`no-explicit-any`），`out` 改 `const`（`prefer-const`）；`row?.toolPermissions` 显式处理未找到行。
+- 效果：`eslint src tests` 由 3 error 转为 **0 error**（这 3 处在 `4a43f67` 上即存在），与 tsc 0 error / vitest 110/110 一起构成完整门禁。
+- 双清单 `package.json` / `dsh-plugin.json` 同步至 **0.3.12**（避免 0.3.10 那类漏同步）。
+
 ## 0.3.11 (2026-10-27)
 
 > 0.3.10 已发布但作废（勿用）：包内 `dsh-plugin.json` 的 `version` 仍为 `0.3.9`，与 `package.json` 未同串。0.3.11 仅补齐双清单同步，代码与 0.3.10 一致。

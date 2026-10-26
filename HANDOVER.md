@@ -72,6 +72,8 @@ tests/            67 用例（authz 表驱动 / store / model / import / stdio-c
 14. **client 设置卡的铁律**：① `configForms` 必须声明进 client `inject`（0.2.3 教训：apply 时同步 get 拿到 undefined，整个卡片静默没注册）；② `dsh.client.inject` 必须列出服务提供模块（`dsh-client-ui-slots`→slots、`dsh-client-ui-settings`→configForms）；③ `settings.section` 的 inject face（`hooks.tabs`）被设置壳转化为 **`useTabs` 选择器 hook**，renderSlot 是可选派发器——按 props.useTabs / props.renderSlot 消费。
 15. **家族设置挂靠惯例**（session-steward 范本，用户明确要求）：常驻 `dsh-family.tab` 贡献卡（thinking-levels 在场时是「起子插件设置」里的 tab）；**家族节接管选举**——宽限期后无 `dsh-family` 节则同 id 接管并通用渲染全部贡献卡，且要**再武装**（订阅 settings.section 变更 + 兜底轮询）：宿主被卸载时家族面原地保留、名字保持「起子插件设置」；接管节组件必须带 tablist 层级（pill 样式照抄 family-tab.tsx），不能平铺。
 13. **验证工具链**：临时宿主冒烟 = `_tmp-dsh020/`（`npm i @deepseek-ai/dsh@0.2.0-rc.2`）+ `DSH_HOME=<tmp> dsh rescue --from-default-profile web` → `dsh plugin --profile rescue add -w <tgz>`（-w 必须，pnpm workspace-root）→ `dsh --profile rescue --dump-config`（组合校验）→ `timeout 25 dsh --profile rescue`（真实挂载，grep 启动日志；加 `--no-open` 防弹浏览器）。
+14. **命令返回值契约必须用宿主校验函数复刻测**（0.3.10 血泪）：宿主 `normalizeResult` 在注册边界硬校验 `kind ∈ {success, error}`，但手搓的 `{ register(cmd) { handler = cmd.handler } }` 假宿主**从不跑这个校验**，把 `kind: 'text'` 藏了 8 个版本。`tests/command.test.ts` 的 `hostNormalize()` 是宿主校验的逐字复刻，新表面必须过它；同理**假会话不得比真实现更宽容**（`fakeSession` 返回了 `serverName:'fake'` 而真实现返回 `void`，把 probe 身份丢失盖了 8 个版本）——一旦发现 stub 比生产更“聪明”，先怀疑被测代码。
+15. **版本号是多写点**：`package.json` 与 `dsh-plugin.json` 的 `version` 必须同串，build/publish 都不校验（0.3.10 就漏改后者）；bump 的验收标准是“旧号 grep 为 0 且解包 tarball 双清单同号”。
 
 ## 5. 回退 / 卸载
 
@@ -81,7 +83,7 @@ tests/            67 用例（authz 表驱动 / store / model / import / stdio-c
 ## 6. 已知边界（诚实不粉饰）
 
 - **review 判定 = 诚实拒绝**：DSH 0.1.7 无每调用审批链，review-all 下的 agent 调用返回 needs_review 文本（含 grant 指引），不执行、不伪装"已请示"。
-- **/mcp-reg probe|call 返回 Promise**：宿主若不 await 命令 handler，这两个子命令无回显（list 等同步子命令不受影响）。
+- **命令返回值只认 `success` / `error`**：宿主 `normalizeResult` 是硬闸门（`0.1.7-rc.2` 到 `0.2.1-rc.3` 逐条一致），其它任何 `kind` 直接抛 `unknown result kind`；`success` 的 `text` 可省，`error` 的 `text` 必须 trim 非空。`/mcp-reg probe|call` 返回 Promise，宿主 await 后走同一道校验。
 - **探活仅手动**（/mcp-reg probe / bridge 内部懒初始化）；无后台循环、无 SSE 推送。
 - **v1 无 OAuth / SSE 旧传输 / 无物理删除**（只 disable）；`listAuthorized` 只返回 allowlist 且已启用的连接器。
 - **stdio 会话常驻**：首次调用 spawn 后复用，closeAll 挂在 ctx.effect；连接器被 disable 不会杀掉已 spawn 的子进程（下次 enable 复用同一会话）——如需强杀，重启插件。
