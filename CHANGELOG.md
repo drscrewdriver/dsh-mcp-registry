@@ -1,6 +1,8 @@
 # CHANGELOG — dsh-mcp-registry
 
-## 0.3.10 (2026-10-27)
+## 0.3.11 (2026-10-27)
+
+> 0.3.10 已发布但作废（勿用）：包内 `dsh-plugin.json` 的 `version` 仍为 `0.3.9`，与 `package.json` 未同串。0.3.11 仅补齐双清单同步，代码与 0.3.10 一致。
 
 ### 修复（issue #1，报告者 shaomou-pek）
 
@@ -12,6 +14,7 @@
 - 上述两处缺陷都**不是**偶发：`tests/command.test.ts` 手搓 `register` mock 从不经过宿主校验，且 mock 类型把 `kind` 写成宽 `string`；`tests/bridge.test.ts` 的假会话默认返回 `{serverName:'fake'}`，比真实现（返回 void）更“正确”。两层假绿让缺陷活了 8 个版本。
 - 新增 `hostNormalize()`——宿主 `normalizeResult` 的等价复刻（三条 throw 文案逐字对齐），所有子命令（含异步 `probe` 分支）结果均须过它；新增 `tests/stdio-initialize.test.ts`，用 `node -e` 内联假 MCP server 起**真子进程**，经真实 `McpStdioSession` 与 `McpBridge.probe()` 断言身份回显。反向验证：把 `success` 改回 `text` 时新用例必红。
 - typecheck 0 错；vitest **110/110**（新增 5 例）；tsdown build 产物 `kind:"text"` 计数 0。`eslint` 仍有 3 处**存量**报错（`src/index.ts:168`、`tests/surface-http.test.ts:30/52`，HEAD 上同样红，与本改动无关）。
+- 双清单 `package.json` / `dsh-plugin.json` 同步至 **0.3.11**（0.3.10 发版时漏改后者，故重发）。
 
 0.3.8: host enumeration addendum for DSH 0.2.1-rc.3 (declaration-only bump; contract plane zero diff).
 
