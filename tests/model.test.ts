@@ -51,6 +51,23 @@ describe('normalizeConnectorInput — the args bug guards', () => {
     expect(() => normalizeConnectorInput('l', { url: 'ftp://example.com' }, { provenance: 'manual', now: NOW })).toThrowError(/http\/https/)
   })
 
+  it('an allowlisted host is admitted; the floor and neighbours are not', () => {
+    const allow = { provenance: 'manual' as const, now: NOW, plainHttpAllowlist: ['192.168.1.23', 'nas.lan', '10.0.0.0/8'] }
+    expect(normalizeConnectorInput('a', { url: 'http://192.168.1.23:8080/mcp' }, allow).url).toBe('http://192.168.1.23:8080/mcp')
+    expect(normalizeConnectorInput('b', { url: 'http://NAS.LAN/mcp' }, allow).transport).toBe('streamable-http')
+    expect(() => normalizeConnectorInput('c', { url: 'http://192.168.1.24/mcp' }, allow)).toThrowError(/loopback/)
+    expect(() => normalizeConnectorInput('d', { url: 'http://169.254.169.254/mcp' }, { ...allow, plainHttpAllowlist: ['169.254.0.0/16'] })).toThrowError(/never-plaintext floor/)
+  })
+
+  it('an empty allowlist is byte-for-byte the old loopback-only rule', () => {
+    expect(() => normalizeConnectorInput('e', { url: 'http://example.com/mcp' }, { provenance: 'manual', now: NOW, plainHttpAllowlist: [] })).toThrowError(/loopback/)
+    expect(normalizeConnectorInput('f', { url: 'http://127.0.0.1:1/mcp' }, { provenance: 'manual', now: NOW, plainHttpAllowlist: [] }).transport).toBe('streamable-http')
+  })
+
+  it('rejection names the host to grant, since the error is the only guidance a CLI user gets', () => {
+    expect(() => normalizeConnectorInput('g', { url: 'http://192.168.1.9:8080/mcp' }, { provenance: 'manual', now: NOW })).toThrowError(/add "192\.168\.1\.9" to plainHttpAllowlist/)
+  })
+
   it('sse and remote spellings normalize onto streamable-http', () => {
     const rec = normalizeConnectorInput('legacy', { transport: 'sse', url: 'https://x.example/sse' }, { provenance: 'import', now: NOW })
     expect(rec.transport).toBe('streamable-http')

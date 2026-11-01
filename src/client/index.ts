@@ -31,6 +31,11 @@
  * React comes from the host profile via require(); plain createElement (CJS
  * ModuleLoader build); bilingual labels from an inline zh/en dict.
  */
+// The plain-http rule is judged once in core/plain-http.ts and read by BOTH
+// seams (write + connect). Importing it here rather than re-typing the
+// loopback regex is what keeps display and policy from disagreeing.
+import { isPlainHttpTarget } from '../core/plain-http.ts'
+
 declare function require(id: string): any
 
 const React = require('react')
@@ -107,6 +112,7 @@ const DICT: Record<string, { zh: string; en: string }> = {
   down: { zh: '失败', en: 'down' },
   unprobed: { zh: '未探活', en: 'unprobed' },
   unconfirmed: { zh: '待确认', en: 'unconfirmed' },
+  plainHttp: { zh: '明文 HTTP（白名单放行）', en: 'plain http (allowlisted)' },
   working: { zh: '…', en: '…' },
 }
 
@@ -704,6 +710,9 @@ function ConnectorCard(props: any): any {
     h('span', { style: { ...CHIP, fontSize: '11px' } }, row.transport),
     h('span', { style: { ...MONO, display: 'inline-block', minWidth: 0, maxWidth: '360px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: row.target }, row.target),
     row.pendingConfirmation ? h('span', { style: { ...CHIP, fontSize: '11px', color: '#e6a23c' } }, wt('unconfirmed')) : null,
+    // A granted non-loopback plaintext route is shown, not silently honoured:
+    // bearer tokens and headers ride this link in the clear.
+    isPlainHttpTarget(row.target) ? h('span', { style: { ...CHIP, fontSize: '11px', color: '#e6a23c' }, title: wt('plainHttp') }, wt('plainHttp')) : null,
     h('span', { style: { fontSize: '11px', color: badge.color } }, badge.text))
   const policyLine = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', padding: '3px 0' } },
     h('select', {

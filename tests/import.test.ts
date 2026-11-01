@@ -82,3 +82,15 @@ describe('exportMcpJson — redaction', () => {
     expect(parsed.mcpServers.gh).toEqual({ command: 'npx', args: ['-y', 'srv'] })
   })
 })
+
+describe('importMcpJson — plain http allowlist threading', () => {
+  it('an allowlisted LAN host imports; an unlisted one aborts the WHOLE import (fail-loud)', () => {
+    const ok = importMcpJson(JSON.stringify({ mcpServers: { win: { url: 'http://192.168.1.23:8080/mcp' } } }), {
+      now: NOW,
+      plainHttpAllowlist: ['192.168.1.0/24'],
+    })
+    expect(ok.records[0]?.url).toBe('http://192.168.1.23:8080/mcp')
+    expect(() => importMcpJson(JSON.stringify({ mcpServers: { win: { url: 'http://10.9.9.9/mcp' } } }), { now: NOW }))
+      .toThrowError(/loopback/)
+  })
+})

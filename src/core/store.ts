@@ -182,8 +182,12 @@ export class RegistryStore {
    * confirmation (probe, confirm) before the bridge will run it.
    * A conflicting id is REJECTED, never replaced (replace would silently
    * discard the existing record's grants/policy).
+   *
+   * `opts.plainHttpAllowlist` only affects the early write-time error for a
+   * non-loopback plaintext http url; the enforcement that holds lives in
+   * bridge.ts at connect time. Absent = the loopback-only rule.
    */
-  add(body: { id: unknown; connector: unknown }): ConnectorRecord {
+  add(body: { id: unknown; connector: unknown }, opts?: { plainHttpAllowlist?: readonly string[] }): ConnectorRecord {
     return this.runSync(() => {
       if (this.damaged) throw new DamagedRegistryError(this.damageReason)
       const safeId = sanitizeId(body.id)
@@ -193,7 +197,11 @@ export class RegistryStore {
       if (this.state.connectors.some((c) => c.id === safeId)) {
         throw new McpRecordError('id-conflict', `connector "${safeId}" already exists — remove it first or pick another id`)
       }
-      const record = normalizeConnectorInput(safeId, body.connector, { provenance: 'manual', now: this.now() })
+      const record = normalizeConnectorInput(safeId, body.connector, {
+        provenance: 'manual',
+        now: this.now(),
+        plainHttpAllowlist: opts?.plainHttpAllowlist,
+      })
       record.enabled = false
       record.pendingConfirmation = true
       this.state.connectors.push(record)

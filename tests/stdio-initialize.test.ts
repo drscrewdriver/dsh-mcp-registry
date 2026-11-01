@@ -63,7 +63,7 @@ describe('stdio initialize identity (0.3.10)', () => {
     store.confirm('rea')
     const bridge = new McpBridge(
       store,
-      { getProbeTimeoutMs: () => 5000 },
+      { getProbeTimeoutMs: () => 5000, getPlainHttpAllowlist: () => [] },
       (record) => new McpStdioSession({ command: record.command, args: record.args }),
     )
     const outcome = await bridge.probe('rea')

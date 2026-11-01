@@ -24,6 +24,8 @@ export interface McpRegDeps {
   store: RegistryStore
   bridge: McpBridge
   getDefaultMode(): PermissionMode
+  /** Current plaintext-http grant list; read at call time so a settings change bites immediately. */
+  getPlainHttpAllowlist(): string[]
 }
 
 const HELP = `mcp-reg — MCP connector registry console
@@ -138,7 +140,7 @@ function dispatch(input: string, deps: McpRegDeps): string | Promise<string> {
       const { id, ...fields } = obj
       if (!id || typeof id !== 'string') return 'mcp-reg add: "id" is required (string)'
       try {
-        const record = store.add({ id, connector: fields })
+        const record = store.add({ id, connector: fields }, { plainHttpAllowlist: deps.getPlainHttpAllowlist() })
         return `created "${record.id}" [${record.transport}] — disabled + unconfirmed. Probe, review, then: mcp-reg confirm ${record.id}`
       } catch (e) {
         return errorMessage(e)
@@ -161,7 +163,7 @@ function dispatch(input: string, deps: McpRegDeps): string | Promise<string> {
       const source = rest.join(' ')
       if (!source) return 'usage: mcp-reg import <path|inline json>'
       const text = readImportSource(source)
-      const { records } = importMcpJson(text, { now: Date.now() })
+      const { records } = importMcpJson(text, { now: Date.now(), plainHttpAllowlist: deps.getPlainHttpAllowlist() })
       for (const record of records) store.upsert(record)
       return `imported ${records.length} connector(s), all disabled + unconfirmed. Review, probe, then: mcp-reg confirm <id>\n`
         + records.map((r) => `  - ${r.id} [${r.transport}] ${redactTarget(r)}`).join('\n')

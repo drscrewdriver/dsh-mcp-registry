@@ -18,12 +18,19 @@
 import { resolveToolAccess, mergeAnnotations, type AccessPolicy, type ToolAnnotations } from './authz.ts'
 import type { ConnectorRecord, PermissionMode } from './core/model.ts'
 import type { RegistryStore } from './core/store.ts'
+import { isAllowedPlainHttpHost, isForbiddenPlainHttpHost, isPlainHttpRecord, normalizeHost } from './core/plain-http.ts'
 import { McpHttpSession, type InitializeInfo } from './client/http-client.ts'
 import { McpStdioSession } from './client/stdio-client.ts'
 import { McpTransportError } from './client/transport-error.ts'
 
 export interface BridgeConfig {
   getProbeTimeoutMs(): number
+  /**
+   * Hosts granted a plaintext http route. Read at call time, not captured at
+   * construction: the setting is volatile and a narrowed grant must bite on the
+   * next connect without a remount.
+   */
+  getPlainHttpAllowlist(): string[]
 }
 
 export interface SessionLike {
@@ -88,9 +95,45 @@ export class McpBridge {
     this.createSession = createSession
   }
 
+  /**
+   * THE enforcement point for plaintext http. `core/model.ts` rejects a bad url
+   * at write time, but that seam is bypassable by design of the store: `load()`
+   * asserts `connectors` straight out of registry.json without re-normalizing,
+   * so a hand-edited row reaches here. Judged in a METHOD rather than in
+   * `defaultSessionFactory` because the constructor accepts an injected
+   * `SessionFactory` — a policy that only holds for the built-in factory is not
+   * a policy.
+   */
+  private assertPlainHttpAllowed(record: ConnectorRecord): void {
+    if (!isPlainHttpRecord(record)) return
+    let host: string
+    try {
+      host = normalizeHost(new URL(record.url).hostname)
+    } catch {
+      // Unparseable url: the write path would have refused it already. Refuse
+      // rather than treat an unknown shape as "not plain http, skip".
+      throw new McpTransportError('invalid-url', `connector "${record.id}": url does not parse, cannot judge its plaintext exposure`)
+    }
+    if (isForbiddenPlainHttpHost(host)) {
+      throw new McpTransportError(
+        'http-plain-forbidden',
+        `connector "${record.id}": ${host} is on the never-plaintext floor (link-local 169.254.0.0/16 and 0.0.0.0) and cannot be granted`,
+      )
+    }
+    const allowlist = this.config.getPlainHttpAllowlist()
+    if (!isAllowedPlainHttpHost(host, allowlist)) {
+      throw new McpTransportError(
+        'http-plain-not-allowed',
+        `connector "${record.id}": plain http to ${host} is not granted (the registry only allows loopback by default). `
+        + 'Use https, or add "' + host + '" to plainHttpAllowlist. Note that a hand-edited registry.json bypasses the write-time check, which is why this is enforced on every connect.',
+      )
+    }
+  }
+
   private getSession(record: ConnectorRecord): SessionLike {
     let session = this.sessions.get(record.id)
     if (!session) {
+      this.assertPlainHttpAllowed(record)
       session = this.createSession(record)
       this.sessions.set(record.id, session)
     }
@@ -146,6 +189,7 @@ export class McpBridge {
     const started = Date.now()
     let session: SessionLike | null = null
     try {
+      this.assertPlainHttpAllowed(record)
       session = this.createSession(record)
       const info = await session.initialize(this.config.getProbeTimeoutMs())
       return {

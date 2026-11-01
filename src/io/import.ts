@@ -31,7 +31,7 @@ export interface ImportOutcome {
 
 export function importMcpJson(
   text: string,
-  opts: { now: number; provenance?: Provenance },
+  opts: { now: number; provenance?: Provenance; plainHttpAllowlist?: readonly string[] },
 ): ImportOutcome {
   let parsed: unknown
   try {
@@ -56,7 +56,11 @@ export function importMcpJson(
     throw new McpImportError('*', 'empty', 'mcpServers is empty — nothing to import')
   }
   const records = entries.map(([id, raw]) =>
-    normalizeConnectorInput(id, raw, { provenance: opts.provenance ?? 'import', now: opts.now }),
+    normalizeConnectorInput(id, raw, {
+      provenance: opts.provenance ?? 'import',
+      now: opts.now,
+      plainHttpAllowlist: opts.plainHttpAllowlist,
+    }),
   )
   return { records }
 }

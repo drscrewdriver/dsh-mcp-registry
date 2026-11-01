@@ -1,5 +1,17 @@
 # CHANGELOG — dsh-mcp-registry
 
+## 0.3.16 (2026-11-02)
+
+> 局域网明文 HTTP 放行闸门（issue #2）。默认姿态不变：`plainHttpAllowlist` 缺省空数组时与旧行为逐字节一致。
+> （0.3.15 已被上一个 family-card 修复占用并发到 `dsh-0.2.0` 标签，本次特性顺延至 0.3.16。）
+
+- **新 volatile 配置 `plainHttpAllowlist`**（`src/config.ts`）：授予指定主机走非回环明文 http——精确主机 / IPv4 CIDR（前缀不得宽于 `/8`）/ 单标签通配 `*.suffix`。
+- **新纯模块 `src/core/plain-http.ts`**：单一判定源（`isLoopbackHost` 从 `model.ts` 搬入并 re-export），匹配顺序 回环→地板→精确→CIDR→通配；`169.254.0.0/16`（含 `169.254.169.254`）与 `0.0.0.0` 为硬地板，白名单不可覆盖；非法条目带因报错。
+- **执行点从一处变两处**：写入时 `normalizeConnectorInput`（`model.ts`）早报错 + 新增错误码 `http-plain-forbidden`；运行期建会话时 `McpBridge.assertPlainHttpAllowed`（`bridge.ts`，在 `getSession`/`doProbe` 两径）**强制**——真边界，因为 `store.load()` 不重跑写入校验，手写 registry.json 以前能绕过。拒绝时 `McpTransportError('http-plain-not-allowed')` 且不发出网络请求。
+- **贯通**：`store.add` 可选第二参 / `importMcpJson` 可选字段 / `McpRegDeps`、`GatewayDeps`、`BridgeConfig` 各增 getter；`index.ts` 从 volatile config 接线（热生效，无需重启）。
+- **可见性**：非回环明文连接器行新增琥珀徽标「明文 HTTP（白名单放行）」（`src/client/index.ts`）；回环/https/stdio 不显示。
+- **测试**：新增 31 例（纯模块 21 + bridge 运行期 4 + model 3 + import 1 + command 1 + surface-http 1）；基线 112 例零改动仍通过 → 全量 143 passed。tsc 0 error / eslint 0 error。
+
 ## 0.3.12 (2026-10-27)
 
 > 无行为变更。在 0.3.11 基础上把质量门禁从“红但存量”拉回真绿，使发布态与仓库态一致。

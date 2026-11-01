@@ -25,16 +25,17 @@ function memIo() {
 
 type RawHandler = (inv: { rawInput?: unknown }) => unknown
 
-function setup(sessionFactory?: SessionFactory) {
+function setup(sessionFactory?: SessionFactory, plainHttpAllowlist: string[] = []) {
   const io = memIo()
   const store = new RegistryStore(io, { dir: '/reg', now: () => 1_700_000_000_000 })
   store.load()
-  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 500 }, sessionFactory)
+  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 500, getPlainHttpAllowlist: () => plainHttpAllowlist }, sessionFactory)
   let handler: RawHandler | undefined
   registerMcpRegCommand({ commands: { register: (cmd: { handler: RawHandler }) => { handler = cmd.handler } } }, {
     store,
     bridge,
     getDefaultMode: () => 'review-all',
+    getPlainHttpAllowlist: () => plainHttpAllowlist,
   })
   if (!handler) throw new Error('command did not register')
   // `run` keeps the original text-only assertions working; `runRaw` hands the
@@ -65,6 +66,15 @@ describe('mcp-reg CLI add/remove (0.3.0)', () => {
     expect(run('remove srv-a').text).toContain('removed')
     expect(store.get('srv-a')).toBeUndefined()
     expect(run('remove srv-a').text).toContain('unknown connector')
+  })
+
+  it('add honours the plain http allowlist from deps; a LAN url needs the grant', () => {
+    const closed = setup()
+    expect(closed.run('add {"id":"win","url":"http://192.168.1.23:8080/mcp"}').text).toMatch(/loopback|not granted/)
+    const open = setup(undefined, ['192.168.1.23'])
+    const out = open.run('add {"id":"win","url":"http://192.168.1.23:8080/mcp"}')
+    expect(out.text).toContain('disabled + unconfirmed')
+    expect(open.store.get('win')?.url).toBe('http://192.168.1.23:8080/mcp')
   })
 })
 

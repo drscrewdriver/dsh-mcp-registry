@@ -15,6 +15,9 @@
  *    URL or command line is an RCE-grade credential.
  */
 import { sanitizeId, safeAssign, isUnsafeKey } from './ids.ts'
+import { hostOfPlainHttpTarget, isAllowedPlainHttpHost, isForbiddenPlainHttpHost, isLoopbackHost } from './plain-http.ts'
+
+export { isLoopbackHost }
 
 export type ConnectorTransport = 'stdio' | 'streamable-http'
 export type PermissionMode = 'review-all' | 'allowlist' | 'allow-all'
@@ -86,11 +89,6 @@ export function normalizeToolPermission(value: unknown): ToolPermission | undefi
   return typeof value === 'string' && TOOL_PERMISSIONS.has(value) ? (value as ToolPermission) : undefined
 }
 
-export function isLoopbackHost(hostname: string): boolean {
-  const h = hostname.toLowerCase().replace(/\.$/, '')
-  return h === 'localhost' || h === '::1' || h === '[::1]' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)
-}
-
 /** Hostname of a URL string, or '' when unparseable. */
 export function urlHost(url: string): string {
   try {
@@ -152,11 +150,16 @@ function stringRecord(
  * Normalize one raw connector value (settings row or import entry) into a
  * ConnectorRecord. Throws McpRecordError with a stable code on any malformed
  * input — this function NEVER silently drops or repairs user data.
+ *
+ * `plainHttpAllowlist` gates the NON-loopback plaintext http case only; absent
+ * or empty is the historical loopback-only rule. It is an early, actionable
+ * error surface — the enforcement boundary is `bridge.ts`, because a hand-edited
+ * registry.json reaches a record without ever passing through here.
  */
 export function normalizeConnectorInput(
   id: unknown,
   raw: unknown,
-  opts: { provenance: Provenance; now: number },
+  opts: { provenance: Provenance; now: number; plainHttpAllowlist?: readonly string[] },
 ): ConnectorRecord {
   const safeId = sanitizeId(id)
   if (!safeId) {
@@ -226,8 +229,22 @@ export function normalizeConnectorInput(
       throw new McpRecordError('url-scheme', `connector "${safeId}": only http/https urls are supported`)
     }
     // dsh-mcp-connector's default: HTTPS anywhere, plain HTTP loopback only.
+    // A granted host (core/plain-http.ts) is admitted here for legibility, but
+    // the judgement that actually holds is re-run at connect time in bridge.ts.
     if (parsed.protocol === 'http:' && !isLoopbackHost(parsed.hostname)) {
-      throw new McpRecordError('http-non-loopback', `connector "${safeId}": plain http is only allowed for loopback hosts; use https for ${parsed.hostname}`)
+      const host = parsed.hostname
+      if (isForbiddenPlainHttpHost(host)) {
+        throw new McpRecordError(
+          'http-plain-forbidden',
+          `connector "${safeId}": ${hostOfPlainHttpTarget(url)} is on the never-plaintext floor (link-local 169.254.0.0/16 and 0.0.0.0) and cannot be granted by plainHttpAllowlist`,
+        )
+      }
+      if (!isAllowedPlainHttpHost(host, opts.plainHttpAllowlist ?? [])) {
+        throw new McpRecordError(
+          'http-non-loopback',
+          `connector "${safeId}": plain http is only allowed for loopback hosts; use https, or add "${hostOfPlainHttpTarget(url)}" to plainHttpAllowlist to grant this host`,
+        )
+      }
     }
     finalUrl = url
   } else {

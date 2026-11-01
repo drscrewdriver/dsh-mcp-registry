@@ -54,4 +54,20 @@ export const Config = z.object({
     .description('Max characters of each tool description shown in the tool_discover catalog (truncated). Full schemas return on activation.')
     .volatile()
     .default(160),
+  // ── plain (non-TLS) http on the LAN ────────────────────────────────────
+  // The connector rule is "https anywhere, plain http loopback only". That is
+  // correct as a default and wrong as a wall: a personal LAN machine is not
+  // supposed to mint a hostname and a certificate. So the wall becomes a grant
+  // list — EMPTY means the old behaviour byte-for-byte. Entries: exact host
+  // (`192.168.1.23` / `nas.lan`), IPv4 CIDR no wider than /8 (`192.168.1.0/24`),
+  // or one-label wildcard (`*.lan`). Link-local (169.254.0.0/16, incl. the cloud
+  // metadata address) and 0.0.0.0 can never be granted. Judged at write time for
+  // early errors AND at connect time as the real boundary, because a hand-edited
+  // registry.json bypasses the former. A plaintext route also carries bearer
+  // tokens in the clear — the connector row says so when it matches.
+  plainHttpAllowlist: z
+    .array(z.string())
+    .description('Hosts allowed for plain (non-TLS) http connectors: exact host, IPv4 CIDR (no wider than /8), or "*.suffix". Empty (the default) keeps the loopback-only rule. 169.254.0.0/16 and 0.0.0.0 can never be listed.')
+    .volatile()
+    .default([]),
 })

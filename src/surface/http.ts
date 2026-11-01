@@ -62,6 +62,8 @@ export interface GatewayDeps {
   store: RegistryStore
   bridge: McpBridge
   getEnabled(): boolean
+  /** Current plaintext-http grant list; read per request so a settings change bites immediately. */
+  getPlainHttpAllowlist(): string[]
 }
 
 export function registerMcpRegistryGateway(ctx: McpRegistryContext, deps: GatewayDeps): unknown {
@@ -151,7 +153,7 @@ export function registerMcpRegistryGateway(ctx: McpRegistryContext, deps: Gatewa
           const connector = (body.connector && typeof body.connector === 'object' && !Array.isArray(body.connector))
             ? body.connector
             : body
-          const record = store.add({ id: body.id, connector })
+          const record = store.add({ id: body.id, connector }, { plainHttpAllowlist: deps.getPlainHttpAllowlist() })
           writeJson(res, 200, envelopeOk({ connector: publicView(record) }))
           return
         }
@@ -219,7 +221,7 @@ export function registerMcpRegistryGateway(ctx: McpRegistryContext, deps: Gatewa
         if (method === 'import') {
           const json = typeof body.json === 'string' ? body.json : ''
           if (!json.trim()) { writeJson(res, 400, envelopeError('empty-json', 'json is required')); return }
-          const { records } = importMcpJson(json, { now: Date.now() })
+          const { records } = importMcpJson(json, { now: Date.now(), plainHttpAllowlist: deps.getPlainHttpAllowlist() })
           for (const record of records) store.upsert(record)
           writeJson(res, 200, envelopeOk({
             imported: records.map((r) => ({ id: r.id, transport: r.transport, target: redactTarget(r) })),

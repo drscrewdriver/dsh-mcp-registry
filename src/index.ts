@@ -22,6 +22,7 @@ import fs from 'node:fs'
 import { Config as ConfigSchema } from './config.ts'
 import { RegistryStore, type StoreFileIo } from './core/store.ts'
 import { normalizePermissionMode, publicView, type PermissionMode } from './core/model.ts'
+import { normalizeAllowlist } from './core/plain-http.ts'
 import { McpBridge } from './bridge.ts'
 import { NativeToolLazyLoader, buildDiscoveryGuide, scopeKeyOf, type LazyOptions, type NativeIndexEntry } from './lazy.ts'
 import { createStatusTool, createBridgeTool, createListToolsTool, createDiscoverTool, createActivateTool } from './surface/tool.ts'
@@ -50,6 +51,7 @@ export interface ResolvedRegistryConfig {
   lazyEagerIndex: boolean
   lazyKeepAlways: string[]
   lazyDescriptionLimit: number
+  plainHttpAllowlist: string[]
 }
 
 export function resolveConfig(config: RawConfig): ResolvedRegistryConfig {
@@ -65,6 +67,9 @@ export function resolveConfig(config: RawConfig): ResolvedRegistryConfig {
     lazyEagerIndex: config.lazyEagerIndex !== false,
     lazyKeepAlways: normalizeKeepAlways(config.lazyKeepAlways),
     lazyDescriptionLimit: clampNumber(config.lazyDescriptionLimit, 20, 2000, 160),
+    // Empty by default = the loopback-only rule, unchanged. Shape validation of
+    // individual entries happens in the policy module, not by coercion here.
+    plainHttpAllowlist: normalizeAllowlist(config.plainHttpAllowlist),
   }
 }
 
@@ -97,9 +102,10 @@ export function apply(ctx: McpRegistryContext, config: RawConfig = {}): void {
     get lazyEagerIndex() { return resolveConfig(config).lazyEagerIndex },
     get lazyKeepAlways() { return resolveConfig(config).lazyKeepAlways },
     get lazyDescriptionLimit() { return resolveConfig(config).lazyDescriptionLimit },
+    get plainHttpAllowlist() { return resolveConfig(config).plainHttpAllowlist },
   }
 
-  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => cfg.probeTimeoutMs })
+  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => cfg.probeTimeoutMs, getPlainHttpAllowlist: () => cfg.plainHttpAllowlist })
   ctx.effect?.(() => bridge.closeAll())
 
   // Native tool lazy loading. isEnabled ANDs the registry master switch so
@@ -183,6 +189,7 @@ export function apply(ctx: McpRegistryContext, config: RawConfig = {}): void {
     store,
     bridge,
     getDefaultMode: () => cfg.defaultPermissionMode,
+    getPlainHttpAllowlist: () => cfg.plainHttpAllowlist,
   })
   if (commandDispose !== undefined) ctx.effect?.(() => commandDispose)
 
@@ -227,6 +234,7 @@ export function apply(ctx: McpRegistryContext, config: RawConfig = {}): void {
     store,
     bridge,
     getEnabled: () => cfg.enabled,
+    getPlainHttpAllowlist: () => cfg.plainHttpAllowlist,
   }
   if (typeof dynamicInject === 'function') {
     dynamicInject.call(ctx, ['webServer'], (sctx: McpRegistryContext) => {

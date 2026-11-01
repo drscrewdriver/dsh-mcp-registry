@@ -28,11 +28,32 @@ agent 侧：`mcp_registry_status` → `mcp_bridge_list_tools` → `mcp_bridge_ca
 
 懒加载（开启 `lazyNativeTools` 后）：agent 侧 `tool_discover` 查看被折叠的非核心原生工具 → `tool_activate` 按名展开，下一轮该工具以完整 schema 回到 prompt。缺省 `lazyKeepAlways` 为空，连 bash/read 也需先 discover+activate；想免这一回合就在配置里列入核心工具名。模型由一段常驻的发现引导 system prompt 告知“MCP 走 bridge、隐藏原生工具走 discover/activate”。
 
+## 局域网明文 HTTP（plainHttpAllowlist）
+
+连接器 URL 的默认规则是 **https 任意主机放行、明文 http 仅限回环**（`localhost` / `127.x` / `::1`）。这条限制
+本意是防止 MCP 连接器的 `authToken` / `headers` 走明文链路被同网段嗅探——它照抄了 dsh-mcp-connector 的默认，
+作为默认值合理，作为硬墙过头：一台不对外提供服务的局域网个人机器不该为此去维护域名和证书。
+
+新增 volatile 设置 **`plainHttpAllowlist`**（缺省 `[]` = 完全维持上述旧行为）把「拒绝」变成「按需授予」：
+
+- **三种写法**：精确主机（`192.168.1.23` / `nas.lan`，大小写与根尾点不敏感）、IPv4 CIDR（`192.168.1.0/24`，
+  前缀不得宽于 `/8`）、单标签通配（`*.lan` 放行 `nas.lan`，但不放行裸 `lan` 或 `evillian`）。
+- **硬地板不可覆盖**：链路本地 `169.254.0.0/16`（含云元数据地址 `169.254.169.254`）与 `0.0.0.0` **任何白名单条目都放行不了**，
+  落代码层。非法条目（越界八位组、`/33`、`*.`、宽于 `/8` 的段）带原因报错，绝不静默丢弃。
+- **两处执行点**：写入时（`mcp-reg add`/import 早报错，文案点名要授予的主机）**且**运行期建会话时（`bridge.ts`）强制。
+- **为何两出执行点**：`store.load()` 从 `registry.json` 直接取连接器数组不重新校验，所以**手写/改过的注册表文件会绕过
+  写入校验**——真边界在运行期：一条未授予的非回环明文 http 记录在 probe/list/call 时会被 `http-plain-not-allowed` 拒绝，
+  且**不发出任何网络请求**。因此“改了 registry.json 就能绕过”不成立。
+- **可见性**：命中放行的非回环明文连接器在列表行显示琥珀徽标「明文 HTTP（白名单放行）」；回环/https/stdio 不显示。
+  收紧白名单不会主动断开**已建立**的会话（下次建会话才生效）；需立即切断则重启插件。
+
+> 本闸门只约束本仓自己的桥接路径。若装机侧改用手动的官方 `dsh-mcp-connector` 作后端，那条链路的明文限制由其自身策略决定，不在本仓管辖内。
+
 ## 工程
 
 ```
 npm run typecheck   # strict TS，0 错误
-npm run test        # vitest，81 用例
+npm run test        # vitest，146 用例
 npm run build       # tsdown → lib/index.js（dsh-tools external）
 ```
 

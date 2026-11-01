@@ -35,21 +35,21 @@ interface GatewayBody {
   ok: boolean
   error: { code: string; message?: string }
   value: {
-    connector: { enabled: boolean; pendingConfirmation: boolean }
+    connector: { enabled: boolean; pendingConfirmation: boolean; target?: string }
     connectors: Array<{ id: string; toolPermissions?: Record<string, string> }>
     removed: string
   }
 }
 
 /** Fake webServer ctx: captures the prefix handler for direct invocation. */
-function fakeGateway(store: RegistryStore, bridge: McpBridge): { handle(method: string, body: unknown): Promise<{ status: number; body: GatewayBody }> } {
+function fakeGateway(store: RegistryStore, bridge: McpBridge, plainHttpAllowlist: string[] = []): { handle(method: string, body: unknown): Promise<{ status: number; body: GatewayBody }> } {
   let handler: Handler | undefined
   const ctx = {
     get: () => ({
       register: (opts: { handler: Handler }) => { handler = opts.handler },
     }),
   }
-  const dispose = registerMcpRegistryGateway(ctx as never, { store, bridge, getEnabled: () => true })
+  const dispose = registerMcpRegistryGateway(ctx as never, { store, bridge, getEnabled: () => true, getPlainHttpAllowlist: () => plainHttpAllowlist })
   void dispose
   const call = handler as Handler
   return {
@@ -75,10 +75,10 @@ function fakeGateway(store: RegistryStore, bridge: McpBridge): { handle(method: 
   }
 }
 
-function newBridge(io: StoreFileIo) {
+function newBridge(io: StoreFileIo, plainHttpAllowlist: string[] = []) {
   const store = new RegistryStore(io, { dir: '/reg', now: () => 1_700_000_000_000 })
   store.load()
-  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 500 })
+  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 500, getPlainHttpAllowlist: () => plainHttpAllowlist })
   return { store, bridge }
 }
 
@@ -92,6 +92,20 @@ describe('mcp-registry gateway (0.3.0 methods)', () => {
     expect(r.body.ok).toBe(true)
     expect(r.body.value.connector.enabled).toBe(false)
     expect(r.body.value.connector.pendingConfirmation).toBe(true)
+  })
+
+  it('add rejects a LAN http url when the allowlist is closed, admits it when granted', async () => {
+    const closed = newBridge(memIo())
+    const gwClosed = fakeGateway(closed.store, closed.bridge)
+    const bad = await gwClosed.handle('add', { id: 'win', connector: { url: 'http://192.168.1.23:8080/mcp' } })
+    expect(bad.status).toBe(400)
+    expect(JSON.stringify(bad.body)).toMatch(/loopback/)
+
+    const openB = newBridge(memIo(), ['192.168.1.23'])
+    const gwOpen = fakeGateway(openB.store, openB.bridge, ['192.168.1.23'])
+    const good = await gwOpen.handle('add', { id: 'win', connector: { url: 'http://192.168.1.23:8080/mcp' } })
+    expect(good.status).toBe(200)
+    expect(good.body.value.connector.target).toBe('http://192.168.1.23:8080')
   })
 
   it('P1-D: status carries per-tool allow/review VALUES (not just key names)', async () => {

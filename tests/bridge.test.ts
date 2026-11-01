@@ -24,15 +24,21 @@ function memIo(): StoreFileIo {
   }
 }
 
-function setup(records: Array<[string, Record<string, unknown>]>, sessionFactory?: SessionFactory) {
+/**
+ * `plainHttpAllowlist` is fed to BOTH seams on purpose: the write-time
+ * normalize that seeds the records, and the bridge config the connect-time
+ * judgement reads. A test that grants only one of them is testing a state the
+ * plugin can never be in.
+ */
+function setup(records: Array<[string, Record<string, unknown>]>, sessionFactory?: SessionFactory, plainHttpAllowlist: string[] = []) {
   const io = memIo()
   const store = new RegistryStore(io, { dir: '/reg', now: () => NOW })
   store.load()
   for (const [id, raw] of records) {
-    store.upsert(normalizeConnectorInput(id, raw, { provenance: 'manual', now: NOW }))
+    store.upsert(normalizeConnectorInput(id, raw, { provenance: 'manual', now: NOW, plainHttpAllowlist }))
   }
-  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 1000 }, sessionFactory)
-  return { store, bridge }
+  const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 1000, getPlainHttpAllowlist: () => plainHttpAllowlist }, sessionFactory)
+  return { store, bridge, io }
 }
 
 /**
@@ -157,5 +163,111 @@ describe('McpBridge — the review-first call path', () => {
     const { bridge } = setup([['srv', { ...STDIO, enabled: false }]], () => fakeSession({}))
     await expect(bridge.callTool('nope', 'x', {}, 'agent', 'review-all')).rejects.toThrow(/no connector/)
     await expect(bridge.listTools('srv')).rejects.toThrow(/disabled/)
+  })
+})
+
+/**
+ * The connect-time plaintext gate.
+ *
+ * These cases seed the store DIRECTLY (bypassing `store.add`/import) because
+ * that is the whole reason the gate moved into `McpBridge`: `store.load()`
+ * asserts records out of registry.json without re-normalizing, so a hand-edited
+ * row is exactly the shape that used to reach the network unjudged. If the
+ * assertion below ever passes only because the seed path started validating,
+ * the test has stopped testing the boundary — keep the seed raw.
+ */
+describe('McpBridge — plain http enforcement at connect time', () => {
+  const LAN = 'http://192.168.1.23:8080/mcp'
+
+  function seedRaw(allow: string[]): { store: RegistryStore; io: StoreFileIo; allow: string[] } {
+    const io = memIo()
+    const store = new RegistryStore(io, { dir: '/reg', now: () => NOW })
+    store.load()
+    const record = normalizeConnectorInput('lan', { url: LAN }, {
+      provenance: 'manual',
+      now: NOW,
+      // Grant the write path so the row exists at all — the point under test is
+      // what the CONNECT path decides, not whether the seed could be written.
+      plainHttpAllowlist: allow,
+    })
+    store.upsert({ ...record, enabled: true, pendingConfirmation: false })
+    return { store, io, allow }
+  }
+
+  it('refuses a non-loopback http row that the write check never saw, without touching the network', async () => {
+    const { store } = seedRaw(['192.168.1.23'])
+    // The stored row is real and enabled — prove the seed bypassed the rule.
+    expect(store.get('lan')?.url).toBe(LAN)
+    expect(store.get('lan')?.enabled).toBe(true)
+    let spawned = 0
+    // The bridge is configured with the OLD closed list: the row exists, the
+    // grant does not. This is the hand-edited registry.json shape.
+    const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 1000, getPlainHttpAllowlist: () => [] }, () => {
+      spawned += 1
+      return fakeSession({})
+    })
+    await expect(bridge.listTools('lan')).rejects.toThrow(/not granted/)
+    // 'user' bypasses the authz policy gate but NOT the connect-time plaintext
+    // gate — that is exactly the seam under test. An 'agent' + review-all call
+    // would return needs_review before ever reaching getSession.
+    await expect(bridge.callTool('lan', 'x', {}, 'user', 'review-all')).rejects.toThrow(/not granted/)
+    const outcome = await bridge.probe('lan')
+    expect(outcome.ok).toBe(false)
+    expect(outcome.code).toBe('http-plain-not-allowed')
+    expect(outcome.message).toMatch(/plainHttpAllowlist/)
+    expect(spawned).toBe(0)
+  })
+
+  it('grants all three paths once the host is allowlisted', async () => {
+    const { store } = seedRaw(['192.168.1.23'])
+    let spawned = 0
+    const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 1000, getPlainHttpAllowlist: () => ['192.168.1.0/24'] }, () => {
+      spawned += 1
+      return fakeSession({ 'tools/list': () => ({ tools: [] }), 'tools/call': () => ({ content: [] }) })
+    })
+    await expect(bridge.listTools('lan')).resolves.toEqual([])
+    const outcome = await bridge.callTool('lan', 'someTool', {}, 'user', 'allow-all')
+    expect(outcome.status).toBe('executed')
+    const probe = await bridge.probe('lan')
+    expect(probe.ok).toBe(true)
+    expect(spawned).toBeGreaterThan(0)
+  })
+
+  it('the never-plaintext floor is refused even when a CIDR entry covers it', async () => {
+    const io = memIo()
+    const store = new RegistryStore(io, { dir: '/reg', now: () => NOW })
+    store.load()
+    // Built from a loopback seed rather than normalize()ed with the real url:
+    // the write path refuses a floor host unconditionally (that is the point),
+    // so a floor row can only ever arrive via a hand-edited registry.json.
+    const seed = normalizeConnectorInput('meta', { url: 'http://127.0.0.1:9/mcp' }, { provenance: 'manual', now: NOW })
+    store.upsert({ ...seed, id: 'meta', url: 'http://169.254.169.254/latest/mcp', enabled: true, pendingConfirmation: false })
+    let spawned = 0
+    const bridge = new McpBridge(store, { getProbeTimeoutMs: () => 1000, getPlainHttpAllowlist: () => ['169.254.0.0/16'] }, () => {
+      spawned += 1
+      return fakeSession({})
+    })
+    const outcome = await bridge.probe('meta')
+    expect(outcome.ok).toBe(false)
+    expect(outcome.code).toBe('http-plain-forbidden')
+    expect(spawned).toBe(0)
+  })
+
+  it('loopback and https rows never consult the allowlist', async () => {
+    let spawned = 0
+    const factory: SessionFactory = () => {
+      spawned += 1
+      return fakeSession({})
+    }
+    const { bridge } = setup(
+      [['lb', { url: 'http://127.0.0.1:8080/mcp' }], ['sec', { url: 'https://api.example.com/mcp' }]],
+      factory,
+      [],
+    )
+    const a = await bridge.probe('lb')
+    const b = await bridge.probe('sec')
+    expect(a.ok).toBe(true)
+    expect(b.ok).toBe(true)
+    expect(spawned).toBe(2)
   })
 })
