@@ -909,7 +909,13 @@ function apply(ctx: any): void {
           // the section keeps the family title (起子插件设置), not our plugin
           // name — same semantic as dsh-session-steward's family.title.
           label: function (): string { return wt('familyTitle') },
-          inject: function (): any { return { hooks: { tabs: familyTabsHooks } } },
+          inject: function (): any { return {
+            hooks: { tabs: familyTabsHooks },
+            // 接管时本插件 own 卡内联直挂：id/label + renderOwn（scope 走 configScopeLive(ctx)，非空白）。
+            ownId: ID,
+            ownLabel: wt('famTitle'),
+            renderOwn: function (): any { return React.createElement(SettingsCard, { scope: configScopeLive(ctx) }) },
+          } },
           children: { 'dsh-family.tab': { kind: 'list', scope: 'root' } },
         }, FamilySection)
         done = true
@@ -999,13 +1005,21 @@ function FamilySection(props: any): any {
     // regression in the flattened first cut): tablist + activeId state +
     // one tabpanel rendering the active contributor via renderSlot — the
     // thinking-levels FamilySettingsSection tabs-around-pages pattern.
-    const draft = React.useState(contributors[0]?.id ?? '')
+    // 接管时本插件既是 owner 又是成员：自宣 dsh-family.tab 不触发自身 inject（账本恒无本卡），
+    // 故本卡作首行内联直挂（tab）、其余走账本；已在账本则去重。对齐 thinking-levels OWN_TAB_ID。
+    const ownId = props.ownId != null ? String(props.ownId) : '__own__'
+    const ownLabel = typeof props.ownLabel === 'string' ? props.ownLabel : ownId
+    const renderOwn = typeof props.renderOwn === 'function' ? props.renderOwn : null
+    const rows: readonly FamilyTabEntry[] = renderOwn
+      ? [{ id: ownId, order: Number.NEGATIVE_INFINITY, label: ownLabel }, ...contributors.filter(c => c.id !== ownId)]
+      : contributors
+    const draft = React.useState(rows[0]?.id ?? '')
     const activeId = draft[0]
     const setActiveId = draft[1]
-    const exists = contributors.some(function (c: FamilyTabEntry) { return c.id === activeId })
-    const effective = exists ? activeId : (contributors[0]?.id ?? '')
+    const exists = rows.some(function (c: FamilyTabEntry) { return c.id === activeId })
+    const effective = exists ? activeId : (rows[0]?.id ?? '')
     const tabBar = h('div', { role: 'tablist', style: { display: 'flex', flexWrap: 'wrap', gap: '4px' } },
-      contributors.map(function (c: FamilyTabEntry): any {
+      rows.map(function (c: FamilyTabEntry): any {
         const active = c.id === effective
         // Pill styling verbatim from dsh-thinking-levels family-tab.tsx —
         // fully-enclosed button, filled when active.
@@ -1025,11 +1039,13 @@ function FamilySection(props: any): any {
           onClick: function (): void { setActiveId(c.id) },
         }, c.label)
       }))
-    const panel = renderSlot && effective !== ''
-      ? h('div', {}, renderSlot('dsh-family.tab', {}, { only: effective, fallback: null }))
-      : null
+    const panel = effective === ownId && renderOwn
+      ? h('div', {}, renderOwn())
+      : renderSlot && effective !== ''
+        ? h('div', {}, renderSlot('dsh-family.tab', {}, { only: effective, fallback: null }))
+        : null
     return h('div', { style: { display: 'grid', gap: '10px' } },
-      contributors.length > 0 ? tabBar : null,
+      rows.length > 0 ? tabBar : null,
       panel)
   } catch (e) {
     return h('div', { style: { color: '#f56c6c', fontSize: '12px' } }, 'family section error: ' + (e as Error).message)
