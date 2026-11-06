@@ -23,7 +23,7 @@
   ],
   "dsh": {
     "engines": {
-      "dsh": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5"
+      "dsh": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1"
     },
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -46,9 +46,9 @@
     "@deepseek-ai/schemastery": "^3.18.4"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5",
-    "@deepseek-ai/dsh-client-ui-slots": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5",
-    "@deepseek-ai/dsh-tools": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1",
     "react": "^18.2.0"
   },
   "peerDependenciesMeta": {
@@ -74,7 +74,7 @@
     "@deepseek-ai/dsh-scope": "^0.2.1-rc.3",
     "@deepseek-ai/dsh-session": "^0.2.1-rc.3",
     "@deepseek-ai/dsh-system-prompt": "^0.2.1-rc.3",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.5 || 0.2.2-rc.1",
     "@deepseek-ai/dsh-user-approval": "^0.2.1-rc.3",
     "@deepseek-ai/dsh-working-directory": "^0.2.1-rc.3",
     "@eslint/js": "^10.0.1",
@@ -87,7 +87,7 @@
   },
   "engines": {
     "node": ">=22",
-    "dsh": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5"
+    "dsh": "0.1.7-rc.1 || 0.1.7-rc.2 || 0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.1-rc.2 || 0.2.1-rc.3 || 0.2.1-rc.4 || 0.2.1-rc.5 || 0.2.2-rc.1"
   },
   "license": "MIT",
   "publishConfig": {
