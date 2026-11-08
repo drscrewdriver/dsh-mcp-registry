@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Registro MCP",
+    "description": "Registro governato dei connettori MCP, con autorizzazione fail-closed a più livelli e un bridge che non simula un'approvazione."
+  }
+}

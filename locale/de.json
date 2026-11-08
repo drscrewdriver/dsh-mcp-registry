@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP-Registry",
+    "description": "Verwaltetes Register für MCP-Konnektoren mit mehrstufiger fail-closed-Autorisierung und einer Brücke, die keine Freigabe vortäuscht."
+  }
+}

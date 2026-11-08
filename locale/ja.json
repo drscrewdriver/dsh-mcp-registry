@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP レジストリ",
+    "description": "MCP コネクタの管理付きレジストリ。多段の fail-closed 認可と、偽装しないブリッジを備えます。"
+  }
+}

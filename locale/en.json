@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP Registry",
+    "description": "A governed registry for MCP connectors with multi-level fail-closed authorization and an honest agent bridge."
+  }
+}

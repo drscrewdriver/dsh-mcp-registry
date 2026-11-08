@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP 레지스트리",
+    "description": "MCP 커넥터를 위한 관리형 레지스트리로, 다단계 fail-closed 권한 부여와 가장하지 않는 브리지를 제공합니다."
+  }
+}

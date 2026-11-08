@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "MCP 注册表",
+    "description": "MCP 连接器的受治理注册表，多级 fail-closed 授权与不伪装的桥接。"
+  }
+}
