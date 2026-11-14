@@ -59,7 +59,7 @@ npm run build       # tsdown → lib/index.js（dsh-tools external）
 
 - 目标宿主：DSH 0.2.0 线与 0.2.1-rc.1/rc.2/rc.3（`latest` = 0.3.7）；DSH 0.1.7 线用 `dsh-mcp-registry@dsh-0.1.7`（= 0.3.3）。
   **0.1.6 及以下不再支持也不再测**（作者决定，2026-10-13）：`engines.dsh`（顶层与 `dsh.engines.dsh` 两处）
-  声明为有界区间 `>=0.1.7-rc.1 <0.3.0`（下限 = 0.1.7-rc.1，上限不含 0.3 线；0.1.6 及以下被拒），
+  声明为有界区间 `>=0.1.7-rc.1 <0.3.0-0`（下限 = 0.1.7-rc.1，上限不含 0.3 线；0.1.6 及以下被拒），
   `peerDependencies` 仍逐 rc 枚举（npm 解析不默认带 `includePrerelease`），两者形状不同是故意的；
   老线安装会被宿主按 `engines.dsh` 拒装——这是有意的，不是回归。历史 tag（`dsh-0.1.1` / `dsh-0.1.2` /
   `dsh-0.1.5`）仍指旧版，仅供取用，不再验证。
