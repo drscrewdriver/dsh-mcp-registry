@@ -1,4 +1,10 @@
 # CHANGELOG — dsh-mcp-registry
+## 0.3.18 (2026-11-14)
+> 宿主声明改有界区间（版本上下限改造）。纯元数据发版，代码零改动。
+- **`engines.dsh` 区间化**：顶层 `engines.dsh` 与历史写点 `dsh.engines.dsh` 两处由逐 10 档 rc 枚举改为 `>=0.1.7-rc.1 <0.3.0`（下限＝原枚举起点，0.1.6 及以下仍被拒；上限不含 0.3 线），0.2.x 线上后续 rc 无需重发版即可安装。
+- **peer 不动**：`dsh-client-ui-settings` / `dsh-client-ui-slots` / `dsh-tools` 三个 peer 仍逐 rc 枚举（npm/pnpm 解析不带 `includePrerelease`，peer 写区间会漏中间 rc 导致 ERESOLVE）。
+- **双清单同号收敛**：`dsh-plugin.json` 版本 0.3.16 → 0.3.18（此前落后 package.json，V1 双清单门禁） ；README 支持面段落同步区间措辞。
+- vitest 146/146 绿；V1/V3/V4/V6a 过门。
 
 ## 0.3.16 (2026-11-02)
 
