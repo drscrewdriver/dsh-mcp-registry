@@ -2,6 +2,8 @@
 
 DSH 插件：**MCP 连接器受治理注册表**。借鉴 [dsh-mcp-connector](https://github.com/duhu2000/dsh-mcp-connector)、[dsh-mcp-panel](https://github.com/PerryLink/dsh-mcp-panel) 的职责边界设计，吸收 openhanako `core/mcp` 的授权模型与已知 bug 教训。
 
+语言：[中文](./README.md) · [Português](./README.pt.md)
+
 ## 它做什么
 
 - **注册表**：登记 stdio / streamable-http MCP 连接器，持久化在 `~/.dsh/mcp-registry/registry.json`（原子写 + 写后回读 + 滚动快照 ≤20）。

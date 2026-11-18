@@ -6,6 +6,8 @@
 - **双清单同号收敛**：`dsh-plugin.json` 版本 0.3.16 → 0.3.18（此前落后 package.json，V1 双清单门禁） ；README 支持面段落同步区间措辞。
 - vitest 146/146 绿；V1/V3/V4/V6a 过门。
 
+- i18n: add Portuguese (pt-BR) locale — package metadata face and README mirror.
+
 ## 0.3.16 (2026-11-02)
 
 > 局域网明文 HTTP 放行闸门（issue #2）。默认姿态不变：`plainHttpAllowlist` 缺省空数组时与旧行为逐字节一致。
