@@ -27,7 +27,8 @@
           "title": "MCP 注册表",
           "titles": {
             "en": "MCP Registry",
-            "zh": "MCP 注册表"
+            "zh": "MCP 注册表",
+            "pt": "Registro MCP"
           },
           "fields": [
             {
