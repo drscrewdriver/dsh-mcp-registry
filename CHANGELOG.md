@@ -1,4 +1,13 @@
 # CHANGELOG — dsh-mcp-registry
+## 0.3.21 (2026-11-22)
+> 连接器卡片可读性：400 条 grant 的 chip 墙压掉整张卡的重点，连接器名也偏小。纯 UI 发版，授权判定零改动。
+- **授权工具列表默认折叠**（`src/client/index.ts` `ConnectorCard`）：`toolPermissions` 的 chip 列表从 policyLine 内联改为独立折叠块，默认收起；按钮常显计数「工具授权 (N) 放行 A · 审查 B」，展开后列表限高 180px 内部滚动（点击 chip 仍是撤销单条授权）。展开状态由 `ConnectorManager` 按连接器 id 持有，卡片本身无状态。
+- **工具栏「全部展开 / 全部折叠」**：一次点击翻转所有连接器的工具列表（无连接器时不渲染）。
+- **权限面板工具行默认折叠**：`PermissionPanel` 的工具行（每工具一行＋描述）收进「工具列表 (N) ▾」，展开后限高 420px 滚动；手动加工具名输入框与判据徽标位置不变。
+- **连接器名放大**（`CONNECTOR_NAME`，`src/client/index.ts`）：名称 12px → 15px（等宽 + 600 字重保持不变），并加 `maxWidth: min(360px, 100%)` + 省略号 + `title` 全名——长 id 只会截断，不会把传输方式 / 目标 / 探活徽标挤出这一行，以后新装的 MCP 名字再长也撑不破卡片。
+- 新增 i18n 键：`toolsGrants` / `grantsNone` / `grantAllowShort` / `toolList` / `expand` / `collapse` / `expandAll` / `collapseAll`（zh + en）。
+- 门禁：`tsc --noEmit` 0 error；vitest 146/146；`tsdown` 构建通过。
+
 ## 0.3.18 (2026-11-14)
 > 宿主声明改有界区间（版本上下限改造）。纯元数据发版，代码零改动。
 - **`engines.dsh` 区间化**：顶层 `engines.dsh` 与历史写点 `dsh.engines.dsh` 两处由逐 10 档 rc 枚举改为 `>=0.1.7-rc.1 <0.3.0`（下限＝原枚举起点，0.1.6 及以下仍被拒；上限不含 0.3 线），0.2.x 线上后续 rc 无需重发版即可安装。

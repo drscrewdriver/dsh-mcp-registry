@@ -106,6 +106,16 @@ const DICT: Record<string, { zh: string; en: string }> = {
   enable: { zh: '启用', en: 'Enable' },
   disable: { zh: '停用', en: 'Disable' },
   grants: { zh: '放行', en: 'grants' },
+  // 工具授权块（0.3.21）：一次性导入的连接器可能带几百条 grant，平铺成 chip 墙会把
+  // 整张设置卡淹没 —— 默认折叠，按连接器记忆展开状态。
+  toolsGrants: { zh: '工具授权', en: 'Tool grants' },
+  grantsNone: { zh: '无工具授权', en: 'no tool grants' },
+  grantAllowShort: { zh: '放行', en: 'allow' },
+  toolList: { zh: '工具列表', en: 'Tool list' },
+  expand: { zh: '展开', en: 'Expand' },
+  collapse: { zh: '折叠', en: 'Collapse' },
+  expandAll: { zh: '全部展开', en: 'Expand all' },
+  collapseAll: { zh: '全部折叠', en: 'Collapse all' },
   grantPlaceholder: { zh: '输入工具名后回车=放行', en: 'tool name + Enter = grant' },
   trust: { zh: '信任 readOnlyHint', en: 'trust readOnlyHint' },
   alive: { zh: '存活', en: 'alive' },
@@ -244,6 +254,15 @@ const CHIP = {
   ...BTN, display: 'inline-block', cursor: 'default', padding: '1px 8px', borderRadius: '999px', marginRight: '4px',
 } as const
 const MONO = { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace', fontSize: '12px' } as const
+
+// The connector name is what a card gets scanned for, so it sits a step above the
+// 12px body text. A long id ellipsizes instead of pushing the transport / target /
+// probe badges off the row — names only get longer as more MCP servers get added.
+const CONNECTOR_NAME = {
+  ...MONO, fontSize: '15px', fontWeight: 600, lineHeight: 1.3,
+  display: 'inline-block', maxWidth: 'min(360px, 100%)', overflow: 'hidden',
+  textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom',
+} as const
 
 // ── global Config fields card (unchanged shape from 0.2.4) ──────────────────
 function GroupBlock(props: any): any {
@@ -387,6 +406,17 @@ function ConnectorManager(): any {
   // has to be declared here, above them — a hook after a conditional return
   // changes the hook count between the loading render and the loaded render.
   const [showAdd, setShowAdd] = React.useState(false)
+  // Per-connector visibility of the granted-tool chip list (keyed by connector
+  // id). Owned HERE, not in ConnectorCard, so the toolbar can flip every card
+  // in one click; a card that was never touched stays collapsed (default).
+  const [toolsOpen, setToolsOpen] = React.useState({} as Record<string, boolean>)
+  const toggleTools = React.useCallback(function (id: string): void {
+    setToolsOpen(function (prev: Record<string, boolean>): Record<string, boolean> {
+      const next: Record<string, boolean> = Object.assign({}, prev)
+      next[id] = prev[id] !== true
+      return next
+    })
+  }, [])
 
   const refresh = React.useCallback(function (): void {
     api('status').then(function (value: any) {
@@ -413,7 +443,10 @@ function ConnectorManager(): any {
       '… [diag: origin=' + (pageOrigin() || 'n/a') + ']')
   }
 
-  const toolbar = h('div', { style: { display: 'flex', gap: '6px', padding: '4px 0' } },
+  const allOpen = (rows as ConnectorRow[]).length > 0 && (rows as ConnectorRow[]).every(function (r: ConnectorRow): boolean {
+    return toolsOpen[r.id] === true
+  })
+  const toolbar = h('div', { style: { display: 'flex', gap: '6px', padding: '4px 0', flexWrap: 'wrap' } },
     h('button', { style: BTN, onClick: function () { refresh() } }, wt('refresh')),
     h('button', { style: BTN, onClick: function () { setShowAdd(!showAdd); setShowImport(false); setExportText('') } }, wt('addBtn')),
     h('button', { style: BTN, onClick: function () { setShowImport(!showImport); setExportText('') } }, wt('importBtn')),
@@ -422,7 +455,18 @@ function ConnectorManager(): any {
       onClick: function () {
         api('export').then(function (v: any) { setExportText(v.json ?? ''); setShowImport(false) }).catch(function (e: Error) { setError(e.message) })
       },
-    }, wt('exportBtn')))
+    }, wt('exportBtn')),
+    // Bulk switch for the granted-tool chip wall: one click, no N-click walk.
+    rows.length === 0
+      ? null
+      : h('button', {
+          style: BTN,
+          onClick: function (): void {
+            const next: Record<string, boolean> = {}
+            for (const r of rows as ConnectorRow[]) next[r.id] = !allOpen
+            setToolsOpen(next)
+          },
+        }, allOpen ? wt('collapseAll') : wt('expandAll')))
 
   const importPanel = showImport
     ? h('div', { style: { display: 'grid', gap: '6px', padding: '6px 0' } },
@@ -463,7 +507,16 @@ function ConnectorManager(): any {
 
   const list = rows.length === 0
     ? h('div', { style: { padding: '6px 0', fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } }, wt('empty'))
-    : (rows as ConnectorRow[]).map(function (row: ConnectorRow): any { return h(ConnectorCard, { key: row.id, row: row, act: act, busy: busy }) })
+    : (rows as ConnectorRow[]).map(function (row: ConnectorRow): any {
+        return h(ConnectorCard, {
+          key: row.id,
+          row: row,
+          act: act,
+          busy: busy,
+          toolsOpen: toolsOpen[row.id] === true,
+          onToolsToggle: function (): void { toggleTools(row.id) },
+        })
+      })
 
   return h('div', { style: { borderTop: '1px solid var(--dsw-alias-border-l2, rgba(127,127,127,.25))', paddingTop: '6px' } },
     h('div', { style: { fontSize: '12px', fontWeight: 600, color: 'var(--dsw-alias-label-secondary, rgba(127,127,127,.9))', padding: '2px 0 4px' } }, wt('gConnectors')),
@@ -561,6 +614,10 @@ function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body:
   })())
   const [manual, setManual] = React.useState('')
   const [badge, setBadge] = React.useState({ phase: 'idle', attempt: 0, error: '' })
+  // Same clutter problem one level down: one row per tool, descriptions and
+  // all. The per-tool rows stay COLLAPSED until asked for; the header keeps the
+  // count so opening the panel is not a blind jump.
+  const [listOpen, setListOpen] = React.useState(false)
 
   React.useEffect(function (): () => void {
     let alive = true
@@ -645,18 +702,29 @@ function PermissionPanel(props: { row: ConnectorRow; act: (method: string, body:
         : null)
   }
 
+  const toolCount = treeNames.length + offTree.length
   return h('div', { style: { border: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.3))', borderRadius: '8px', padding: '6px 8px', margin: '4px 0', minWidth: 0, maxWidth: '100%', overflow: 'hidden' } },
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' } },
       h('span', { style: { fontSize: '12px', fontWeight: 600 } }, wt('permPanel')),
-      h(SyncBadgeView, { badge: badge })),
+      h(SyncBadgeView, { badge: badge }),
+      h('button', {
+        style: { ...BTN, fontSize: '11px' },
+        'aria-expanded': listOpen,
+        disabled: toolCount === 0,
+        onClick: function (): void { setListOpen(!listOpen) },
+      }, wt('toolList') + ' (' + toolCount + ') ' + (listOpen ? '▴' : '▾'))),
     loadErr !== ''
       ? h('div', { style: { fontSize: '11px', color: '#e6a23c', padding: '2px 0' } }, wt('permLoadFail') + ': ' + loadErr + ' — ' + wt('permProbeFirst'))
       : null,
     treeNames.length === 0 && loadErr === ''
       ? h('div', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))', padding: '2px 0' } }, wt('permProbeFirst'))
       : null,
-    treeNames.map(function (n: string): any { return toolRow(n, byName.get(n)) }),
-    offTree.map(function (n: string): any { return toolRow(n, undefined) }),
+    // Bounded scroller: the per-tool rows are the tall part of this panel.
+    treeNames.length + offTree.length > 0 && listOpen
+      ? h('div', { style: { maxHeight: '420px', overflowY: 'auto', overflowX: 'hidden', minWidth: 0 } },
+          treeNames.map(function (n: string): any { return toolRow(n, byName.get(n)) }),
+          offTree.map(function (n: string): any { return toolRow(n, undefined) }))
+      : null,
     h('div', { style: { display: 'flex', gap: '6px', paddingTop: '4px', alignItems: 'center' } },
       h('input', {
         value: manual, placeholder: wt('permManualTool'), style: { ...INPUT, width: '200px' },
@@ -705,8 +773,18 @@ function ConnectorCard(props: any): any {
     return act('policy', { id: row.id, trustReadOnlyHint: v }, row.id + ':trust')
   })
   const badge = probeBadge(row)
+  // Granted tools: values matter (a review entry must never read as granted),
+  // and the counts are the only thing the collapsed card shows.
+  const grantsMap: Record<string, 'allow' | 'review'> = row.toolPermissions ?? {}
+  const grantKeys = Object.keys(grantsMap)
+  const allowCount = grantKeys.filter(function (k: string): boolean { return grantsMap[k] === 'allow' }).length
+  const reviewCount = grantKeys.length - allowCount
+  const toolsOpen = props.toolsOpen === true
+  const grantsSummary = grantKeys.length === 0
+    ? wt('grantsNone')
+    : wt('grantAllowShort') + ' ' + allowCount + ' · ' + wt('permReview') + ' ' + reviewCount
   const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', minWidth: 0 } },
-    h('span', { style: { ...MONO, fontWeight: 600 } }, row.id),
+    h('span', { style: CONNECTOR_NAME, title: row.id }, row.id),
     h('span', { style: { ...CHIP, fontSize: '11px' } }, row.transport),
     h('span', { style: { ...MONO, display: 'inline-block', minWidth: 0, maxWidth: '360px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: row.target }, row.target),
     row.pendingConfirmation ? h('span', { style: { ...CHIP, fontSize: '11px', color: '#e6a23c' } }, wt('unconfirmed')) : null,
@@ -734,20 +812,21 @@ function ConnectorCard(props: any): any {
     h(SyncBadgeView, { badge: trust.badge }),
     h('button', { style: BTN, onClick: function () { setPermOpen(!permOpen) } },
       wt('permPanel') + (permOpen ? ' ▲' : ' ▼')),
-    (function (): any {
-      // P1-D: chips carry the VALUE — a review entry must not read as granted.
-      const map = row.toolPermissions ?? {}
-      const keys = Object.keys(map)
-      if (keys.length === 0) return h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.7))' } }, '—')
-      return keys.map(function (tool: string): any {
-        const isAllow = map[tool] === 'allow'
-        return h('span', {
-          key: tool, style: { ...CHIP, cursor: 'pointer', fontSize: '11px', color: isAllow ? 'inherit' : '#e6a23c', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-          title: wt('grants') + ': ' + (isAllow ? wt('permAllow') : wt('permReview')) + ' — ' + tool,
-          onClick: function () { act('policy', { id: row.id, revoke: tool }, row.id + ':revoke:' + tool) },
-        }, tool + (isAllow ? ' ×' : ' ⧗ ×'))
-      })
-    })(),
+    // 0.3.21: the granted-tool chips used to be inlined here. An imported
+    // connector can carry hundreds of grants, and that chip wall pushed the
+    // probe/enable/remove row off screen — the card read as one blob of tool
+    // names with no visible focus. The list is now COLLAPSED by default behind
+    // this one button, which still states the counts so the card keeps telling
+    // you how much policy exists.
+    h('button', {
+      style: { ...BTN, display: 'inline-flex', alignItems: 'center', gap: '6px' },
+      title: grantsSummary,
+      'aria-expanded': toolsOpen,
+      onClick: function () { props.onToolsToggle?.() },
+    },
+      h('span', null, wt('toolsGrants') + ' (' + grantKeys.length + ')'),
+      h('span', { style: { fontSize: '11px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.8))' } }, grantsSummary),
+      h('span', { 'aria-hidden': true }, toolsOpen ? '▴' : '▾')),
     h('input', {
       value: grantText, placeholder: wt('grantPlaceholder'), style: { ...INPUT, width: '160px' },
       onChange: function (this: any, e: any) { setGrantText(e.target.value) },
@@ -758,6 +837,22 @@ function ConnectorCard(props: any): any {
         }
       },
     }))
+  // Expanded view of the granted chips. Bounded height + scroll: a 400-grant
+  // connector must stay inside its card instead of taking over the page.
+  const grantsBlock = toolsOpen
+    ? h('div', { style: { border: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.3))', borderRadius: '8px', padding: '6px 8px', margin: '2px 0', minWidth: 0, maxWidth: '100%' } },
+        grantKeys.length === 0
+          ? h('span', { style: { fontSize: '12px', color: 'var(--dsw-alias-label-tertiary, rgba(127,127,127,.7))' } }, wt('grantsNone'))
+          : h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', maxHeight: '180px', overflowY: 'auto', overflowX: 'hidden', minWidth: 0 } },
+              grantKeys.map(function (tool: string): any {
+                const isAllow = grantsMap[tool] === 'allow'
+                return h('span', {
+                  key: tool, style: { ...CHIP, marginRight: 0, cursor: 'pointer', fontSize: '11px', color: isAllow ? 'inherit' : '#e6a23c', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+                  title: wt('grants') + ': ' + (isAllow ? wt('permAllow') : wt('permReview')) + ' — ' + tool,
+                  onClick: function () { act('policy', { id: row.id, revoke: tool }, row.id + ':revoke:' + tool) },
+                }, tool + (isAllow ? ' ×' : ' ⧗ ×'))
+              })))
+    : null
   const actions = h('div', { style: { display: 'flex', gap: '6px', padding: '3px 0' } },
     h('button', { style: BTN, onClick: function () { act('probe', { id: row.id }, row.id + ':probe') } }, wt('probe') + (busy === row.id + ':probe' ? wt('working') : '')),
     row.pendingConfirmation
@@ -780,7 +875,7 @@ function ConnectorCard(props: any): any {
       },
     }, confirmRemove ? wt('removeConfirm') : wt('removeBtn')))
   return h('div', { style: { borderBottom: '1px dashed var(--dsw-alias-border-l2, rgba(127,127,127,.2))', padding: '6px 0', minWidth: 0, maxWidth: '100%', overflow: 'hidden' } },
-    head, policyLine, actions,
+    head, policyLine, grantsBlock, actions,
     permOpen ? h(PermissionPanel, { key: row.id + ':perm', row: row, act: act, busy: busy }) : null)
 }
 
