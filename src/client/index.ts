@@ -35,6 +35,7 @@
 // seams (write + connect). Importing it here rather than re-typing the
 // loopback regex is what keeps display and policy from disagreeing.
 import { isPlainHttpTarget } from '../core/plain-http.ts'
+import { mountStarRow } from './star-row-copy.ts'
 
 declare function require(id: string): any
 
@@ -950,7 +951,8 @@ function SettingsCard(props: any): any {
       return h(GroupBlock, { key: group.gk, group: group, value: effectiveValue, writable: writable, scope: echoScope })
     }),
     modeBadge.phase !== 'idle' ? h(SyncBadgeView, { badge: modeBadge }) : null,
-    h(ConnectorManager, { key: 'connectors' }))
+    h(ConnectorManager, { key: 'connectors' }),
+    h('span', { key: 'star-row', ref: (node: HTMLElement | null) => { if (node && !node.firstChild) node.appendChild(mountStarRow()) } }))
 }
 
 // ── mounting: own top-level section + plugin detail page ────────────────────
